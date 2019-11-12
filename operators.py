@@ -12,18 +12,19 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         mytool = scene.my_tool
         global user
 
-        # print the values to the console
-        print("connection type:", mytool.connection_type)
-        print("port:", mytool.port)
-
         if mytool.connection_type == 'Client':
             from . client import Client
             user = Client(mytool.login, mytool.port)
         else:
             from . server import Server
-            user = Server(mytool.port)
-            user.run()
-        mytool.is_connected = True
+            try:
+                user = Server(mytool.port)
+                user.run()
+                mytool.is_connected = True
+            except OSError:
+                mytool.port += 1
+                self.report({'ERROR'}, 'Address already in use, try with different port')
+                return {'CANCELLED'}
         return {'FINISHED'}
 
 class WM_OT_SendMessage(bpy.types.Operator):
@@ -41,10 +42,13 @@ class WM_OT_CloseConnection(bpy.types.Operator):
     bl_label = "Close connection"
 
     def execute(self, context):
-
+        global user
+        
         scene = context.scene
         mytool = scene.my_tool
         user.close()
+        user = None
+        mytool.is_connected = False
         return {'FINISHED'}
 
 

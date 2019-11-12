@@ -75,8 +75,11 @@ class Server:
         self.thread_server.start()
     
     def close(self):
-        self.thread_server.join(10)
-        sys.exit(0)
+        self.terminate()
+        self.thread_server.join(3)
+        self.server_socket.shutdown(1)
+        self.server_socket.close()
+        print("Connection closed")
 
 if __name__ == "__main__":
     server = Server(12345)
