@@ -1,86 +1,95 @@
-import socket
-import select
-import threading
-import sys
+import asyncio
+import json
+from datetime import datetime
 
-class Server:
+class ChatServerProtocol(asyncio.Protocol):
+    def __init__(self, connections, users):
+        self.connections = connections
+        self.users = users
+        self.peername = ""
+        self.user = None
 
-    HEADER_LENGTH = 10
-    IP = "127.0.0.1"
+    def connection_made(self, transport):
+        self.connections += [transport]
+        self.peername = transport.get_extra_info('sockname')
+        self.transport = transport
 
-    def __init__(self, port):
-        self.PORT = port
-        self.configure_server()
-        self._running = True
-        
+    def connection_lost(self, exc):
+        if isinstance(exc, ConnectionResetError):
+            self.connections.remove(self.transport)
+        else:
+            print(exc)
+        err = "{}:{} disconnected".format(*self.peername)
+        print(err)
+        for connection in self.connections:
+            connection.write(message) # Send to all info about lost connection
 
-    def configure_server(self):
-        self.server_socket = socket.socket()
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # reconnection
-        self.server_socket.bind((self.IP, self.PORT))
-        self.server_socket.listen()
-        self.sockets_list = [self.server_socket]
-        self.clients = {}
-
-    def receive_message(self, client_socket):
-        try:
-            message_header = client_socket.recv(self.HEADER_LENGTH)
-
-            if not message_header:
-                return False
-
-            message_length = int(message_header.decode())
-            # WARNING SET LENGTH LIMITS
-            return {"header": message_header, "data": client_socket.recv(message_length)}
-        except:
-            return False
-
-    def _run(self):
-        while self._running:
-            read_sockets, _, exception_sockets = select.select(self.sockets_list, [], self.sockets_list)
-            
-            for notified_socket in read_sockets:
-                if notified_socket == self.server_socket:
-                    client_socket, client_address = self.server_socket.accept()
-
-                    user = self.receive_message(client_socket)
-                    if user is False: # someone was disconnected
-                        continue
-                    
-                    self.sockets_list.append(client_socket)
-                    self.clients[client_socket] = user
-                    # BECAUSE FIRST SENDED DATA IS USERNAME
-                    print(f"{user['data'].decode()} join channel.\nInfo:{client_address[0]}:{client_address[1]}")
-
+    def data_received(self, data):
+        if data:
+            if not self.user:
+                user = data.decode()
+                if not user.isalpha():
+                    self.transport.write(self.make_mgs("Your name must be alphanumeric", "[Server]", "servermsg"))
+                    self.transport.close()
                 else:
-                    message = self.receive_message(notified_socket)
-                    if not message:
-                        print(f"{self.clients[notified_socket]['data'].decode()} left channel")
-                        self.sockets_list.remove(notified_socket)
-                        del self.clients[notified_socket]
-                        continue
+                    self.user = data.decode()
+                    print('{} connected ({}:{})'.format(self.user, *self.peername))
+                    msg = '{} connected ({}:{})'.format(self.user, *self.peername)
+                    message = self.make_msg(msg, "[Server]", "servermsg")
                     
-                    user = self.clients[notified_socket]
-                    print(f"{user['data'].decode()} > {message['data'].decode()}")
+                    for connection in self.connections:
+                        connection.write(message)
+            else:
+                message = data.decode()
+                print(f"{self.user}: {message}")
+                msg = self.make_msg(message, self.user)
+                for connection in self.connections:
+                    connection.write(msg)
 
-            for notified_socket in exception_sockets:
-                self.sockets_list.remove(notified_socket)
-                del self.clients[notified_socket]
+        else:
+            msg = self.make_msg("Sorry! You sent a message without a name or data, it has not been sent.", "[Server]", "servermsg")
+            self.transport.write(msg)
 
-    def terminate(self):
-        self._running = False
+    def make_msg(self, message, author, *event):
+            msg = dict()
+            msg["content"] = message
+            msg["author"] = author
+            time = datetime.utcnow()
+            msg["timestamp"] = "{hour}:{minute}:{sec}".format(hour=str(time.hour).zfill(2),
+                                                              minute=str(time.minute).zfill(2),
+                                                              sec=str(time.second).zfill(2))
+            if event:
+                msg["event"] = event[0]
+            else:
+                msg["event"] = "message"
+            return json.dumps(msg).encode()
 
-    def run(self):
-        self.thread_server = threading.Thread(target=self._run, daemon=True)
-        self.thread_server.start()
-    
-    def close(self):
-        self.terminate()
-        self.thread_server.join(3)
-        self.server_socket.shutdown(1)
-        self.server_socket.close()
-        print("Connection closed")
+class Server():
+    def __init__(self, addr="127.0.0.1", port=50000):
+        self.addr, self.port = addr, port
 
-if __name__ == "__main__":
-    server = Server(12345)
-    server.run()
+        self.connections = []
+        self.users = dict()
+
+        self.loop = asyncio.get_event_loop()
+        self.server = self.create_and_start_server()
+
+
+    def create_and_start_server(self):
+        coro = self.loop.create_server(lambda: ChatServerProtocol(connections, users), self.addr, self.port)
+        server = self.loop.run_until_complete(coro)
+        print('Serving on {}:{}'.format(*server.sockets[0].getsockname()))
+        # self.loop.run_forever()
+        return server
+
+    def close_server(self):
+        self.server.close()
+        self.loop.run_until_complete(self.server.wait_closed())
+        self.loop.close()
+
+        
+# if __name__ == "__main__":
+#     s = Server()
+#     while True:
+#         pass
+
