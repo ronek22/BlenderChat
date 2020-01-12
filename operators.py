@@ -15,6 +15,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         if mytool.connection_type == 'Client':
             from . client import Client
             user = Client(mytool.login, mytool.port)
+            mytool.is_connected = True
         else:
             from . server import Server
             try:
@@ -22,7 +23,6 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                 user.run()
                 mytool.is_connected = True
             except OSError:
-                mytool.port += 1
                 self.report({'ERROR'}, 'Address already in use, try with different port')
                 return {'CANCELLED'}
         return {'FINISHED'}
