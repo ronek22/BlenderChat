@@ -17,10 +17,10 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             user = Client(mytool.login, mytool.port)
             mytool.is_connected = True
         else:
-            from . server import Server
+            from . aio_server2 import run_server, aiohttp_server
             try:
-                user = Server(mytool.port)
-                user.run()
+                user = Thread(target=run_server, args=(aiohttp_server(),))
+                user.start()
                 mytool.is_connected = True
             except OSError:
                 self.report({'ERROR'}, 'Address already in use, try with different port')
