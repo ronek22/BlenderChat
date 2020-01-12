@@ -14,12 +14,13 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
 
         if mytool.connection_type == 'Client':
             from . client import Client
-            user = Client(mytool.login, mytool.port)
+            user = Client(mytool.login)
         else:
-            from . server import Server
+            from . server import ChatServerProtocol, run_server
             try:
-                user = Server(mytool.port)
-                user.run()
+                user = run_server()
+                # user = Server(mytool.port)
+                # user.run()
                 mytool.is_connected = True
             except OSError:
                 mytool.port += 1
@@ -49,6 +50,19 @@ class WM_OT_CloseConnection(bpy.types.Operator):
         user.close()
         user = None
         mytool.is_connected = False
+        print("Connection Closed")
         return {'FINISHED'}
+
+class WM_OT_RUN_LOOP(bpy.types.Operator):
+    bl_idname = "wm.run_loop"
+    bl_label = "Get data"
+
+    def execute(self, context):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        # loop.call_soon(loop.stop)
+        loop.run_forever()
+        return {'FINISHED'}
+
 
 

@@ -20,6 +20,7 @@ class ChatServerProtocol(asyncio.Protocol):
         else:
             print(exc)
         err = "{}:{} disconnected".format(*self.peername)
+        message = self.make_msg(err, "[Server]", "servermsg")
         print(err)
         for connection in self.connections:
             connection.write(message) # Send to all info about lost connection
@@ -29,7 +30,7 @@ class ChatServerProtocol(asyncio.Protocol):
             if not self.user:
                 user = data.decode()
                 if not user.isalpha():
-                    self.transport.write(self.make_mgs("Your name must be alphanumeric", "[Server]", "servermsg"))
+                    self.transport.write(self.make_msg("Your name must be alphanumeric", "[Server]", "servermsg"))
                     self.transport.close()
                 else:
                     self.user = data.decode()
@@ -79,7 +80,7 @@ class Server():
         coro = self.loop.create_server(lambda: ChatServerProtocol(connections, users), self.addr, self.port)
         server = self.loop.run_until_complete(coro)
         print('Serving on {}:{}'.format(*server.sockets[0].getsockname()))
-        # self.loop.run_forever()
+        self.loop.run_forever()
         return server
 
     def close_server(self):
@@ -87,9 +88,34 @@ class Server():
         self.loop.run_until_complete(self.server.wait_closed())
         self.loop.close()
 
-        
-# if __name__ == "__main__":
-#     s = Server()
-#     while True:
-#         pass
+
+
+def run_server():
+    # parser = argparse.ArgumentParser(description="Server settings")
+    # parser.add_argument("--addr", default="127.0.0.1", type=str)
+    # parser.add_argument("--port", default=50000, type=int)
+    # args = vars(parser.parse_args())
+
+    args = {
+        "addr": "127.0.0.1",
+        "port": 50000
+    }    
+    connections = []
+    users = dict()
+    loop = asyncio.get_event_loop()
+    coro = loop.create_server(lambda: ChatServerProtocol(connections, users), args["addr"], args["port"])
+    server = loop.run_until_complete(coro)
+
+    print('Serving on {}:{}'.format(*server.sockets[0].getsockname()))
+    # loop.run_forever()
+
+    return server
+
+    # server.close()
+    # loop.run_until_complete(server.wait_closed())
+    # loop.close()
+
+
+if __name__ == "__main__":
+    run_server()
 

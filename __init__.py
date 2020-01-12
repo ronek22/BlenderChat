@@ -24,15 +24,18 @@ bl_info = {
 
 import bpy
 from bpy.props import PointerProperty
-from . operators import WM_OT_EstablishConnection, WM_OT_SendMessage, WM_OT_CloseConnection
+from . operators import WM_OT_EstablishConnection, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_RUN_LOOP
 from . panels import ChatProperties, OBJECT_PT_CustomPanel
+from . bridge import AsyncioBridgeOperator
 
 classes = (
         WM_OT_EstablishConnection,
         WM_OT_SendMessage,
         WM_OT_CloseConnection,
+        WM_OT_RUN_LOOP,
         ChatProperties,
-        OBJECT_PT_CustomPanel
+        OBJECT_PT_CustomPanel,
+        AsyncioBridgeOperator
     )
 
 # register, unregister = bpy.utils.register_classes_factory(classes)
@@ -53,3 +56,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+    bpy.ops.bpy.start_asyncio_bridge()
