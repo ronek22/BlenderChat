@@ -24,13 +24,14 @@ bl_info = {
 
 import bpy
 from bpy.props import PointerProperty
-from . operators import WM_OT_EstablishConnection, WM_OT_SendMessage, WM_OT_CloseConnection
+from . operators import WM_OT_EstablishConnection, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_CloseClient
 from . panels import ChatProperties, OBJECT_PT_CustomPanel
 
 classes = (
         WM_OT_EstablishConnection,
         WM_OT_SendMessage,
         WM_OT_CloseConnection,
+        WM_OT_CloseClient,
         ChatProperties,
         OBJECT_PT_CustomPanel
     )

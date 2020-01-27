@@ -1,5 +1,7 @@
 import bpy
 from threading import Thread
+import zmq 
+
 
 user = None
 
@@ -9,18 +11,16 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # mytool = context.window_manager.socket_settings
-        # global user
-
-        # if mytool.connection_type == 'Client':
-        #     from . client import Client
-        #     user = Client(mytool.login, mytool.port)
-        #     mytool.is_connected = True
-        # else:
-        import zmq 
-
         self.socket_settings = context.window_manager.socket_settings
 
+        print(f"MODE: {self.socket_settings.connection_type}")
+
+        if self.socket_settings.connection_type == 'Client':
+            return self.run_student(context)
+        else:
+            return self.run_lecturer(context)
+
+    def run_lecturer(self, context):
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
             # Creating a ZeroMQ context
@@ -41,19 +41,10 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
 
             # have blender call our data listeting function in the background
             bpy.app.timers.register(self.timed_msg_poller)
-        else:
-            if bpy.app.timers.is_registered(self.timed_msg_poller):
-                bpy.app.timers.unregister(self.timed_msg_poller())
+        return {'FINISHED'}
 
-            try:
-                bpy.types.WindowManager.socket_sub.close()
-                self.report({'INFO'}, 'Lecturer socket closed')
-            except AttributeError:
-                self.report({'INFO'}, 'Lecturer socket was not active')
-
-            bpy.types.WindowManager.socket_sub = None
-            self.socket_settings.is_connected = False
-
+    def run_student(self, context):
+        self.socket_settings.is_connected = True
         return {'FINISHED'}
 
     def timed_msg_poller(self):
@@ -101,6 +92,17 @@ class WM_OT_CloseConnection(bpy.types.Operator):
             self.report({'INFO'}, 'Lecturer socket was not active')
 
         bpy.types.WindowManager.socket_sub = None
+        socket_settings.is_connected = False
+
+        return {'FINISHED'}
+
+
+class WM_OT_CloseClient(bpy.types.Operator):
+    bl_idname = "wm.close_client"
+    bl_label = "Close connection"
+
+    def execute(self, context):
+        socket_settings = context.window_manager.socket_settings
         socket_settings.is_connected = False
 
         return {'FINISHED'}
