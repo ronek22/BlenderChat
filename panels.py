@@ -21,7 +21,7 @@ class ChatProperties(PropertyGroup):
     port : IntProperty(
         name = "Port number",
         description="Port number of client or server",
-        default = 12345,
+        default = 5550,
         min = 1024,
         max = 65535
         )
@@ -71,8 +71,7 @@ class OBJECT_PT_CustomPanel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        mytool = scene.my_tool
+        mytool = context.window_manager.socket_settings
 
         if not mytool.is_connected:
             layout.prop(mytool, "connection_type", text="") 
@@ -88,6 +87,7 @@ class OBJECT_PT_CustomPanel(Panel):
                 layout.operator("wm.send_message")
             else:
                 layout.prop(mytool, "is_connected")
+                layout.prop(mytool, "message")
                 layout.operator("wm.close_server")
 
         

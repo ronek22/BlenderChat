@@ -42,13 +42,13 @@ def register():
     for cls in classes:
         register_class(cls)
 
-    bpy.types.Scene.my_tool = PointerProperty(type=ChatProperties)
+    bpy.types.WindowManager.socket_settings = PointerProperty(type=ChatProperties)
 
 def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
         unregister_class(cls)
-    del bpy.types.Scene.my_tool
+    del bpy.types.WindowManager.socket_settings
 
 
 if __name__ == "__main__":
