@@ -87,7 +87,9 @@ class OBJECT_PT_CustomPanel(Panel):
                 layout.operator("wm.send_message")
                 layout.operator("wm.close_client")
             else:
-                layout.prop(mytool, "is_connected")
+
+                # layout.prop(mytool, "is_connected")
+                layout.prop(mytool, "login")
                 layout.prop(mytool, "message")
                 layout.operator("wm.close_server")
 
