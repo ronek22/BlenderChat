@@ -1,9 +1,10 @@
 import bpy
 from threading import Thread
 import zmq 
+from datetime import datetime
+import os
 
-
-user = None
+CHUNK_SIZE = 250000
 
 class WM_OT_EstablishConnection(bpy.types.Operator):
     bl_idname = "wm.establish_connection"
@@ -20,6 +21,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         else:
             return self.run_lecturer(context)
 
+    # region Lecturer
     def run_lecturer(self, context):
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
@@ -43,6 +45,37 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             bpy.app.timers.register(self.timed_msg_poller)
         return {'FINISHED'}
 
+    def timed_msg_poller(self):
+        socket = bpy.types.WindowManager.socket
+
+        # print(f"Timed poll: {datetime.now().strftime('%HH:%MM:%SS.%f')}")
+
+        if socket:
+            # get sockets with messages
+            # don't wait for msgs
+            sockets = dict(self.poller.poll(0))
+
+            if socket in sockets:
+                mode, user, msg = socket.recv_multipart()
+                user = self.socket_settings.login = user.decode('ascii')
+                mode = mode.decode()
+
+                if mode == 'file':
+                    path = f"{self.socket_settings.path}/{user}.txt" 
+                    with open(path, 'wb') as file:
+                        file.write(msg)
+                elif mode == 'img':
+                    path = f"{self.socket_settings.path}/{user}.png"
+                    with open(path,'wb') as file:
+                        file.write(msg)
+                else:
+                    msg = self.socket_settings.message = msg.decode('utf-8')
+                    print(f"{user} > {msg}")
+                # How to report from timer?         
+            return 0.001
+    # endregion
+
+    # region Student
     def run_student(self, context):
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, 'Connecting to Lecturer...')
@@ -54,30 +87,32 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             self.report({'INFO'}, "Student connected to: {}".format(self.url))
             self.socket_settings.is_connected = True
 
+            # test of periodically send default message
+            # bpy.app.timers.register(self.send_periodically)
+
         return {'FINISHED'}
 
-    def timed_msg_poller(self):
+
+
+    def send_periodically(self):
         socket = bpy.types.WindowManager.socket
 
         if socket:
-            # get sockets with messages
-            # don't wait for msgs
-            sockets = dict(self.poller.poll(0))
+            login = self.socket_settings.login.encode('ascii')
+            socket.send_multipart([b'msg', login, b'Testing periodically'])
 
-            if socket in sockets:
-                user, msg = socket.recv_multipart()
+        # send every second
+        return 1
+    # endregion
 
-                user = self.socket_settings.login = user.decode('ascii')
-                msg = self.socket_settings.message = msg.decode('utf-8')
-                print(f"{user} > {msg}")
+    
 
-                # How to report from timer?         
-            return 0.001
+    
 
 
 class WM_OT_SendMessage(bpy.types.Operator):
     bl_idname = "wm.send_message"
-    bl_label = "Send"
+    bl_label = "Send Msg"
 
     def execute(self, context):
         data = context.window_manager.socket_settings
@@ -85,11 +120,51 @@ class WM_OT_SendMessage(bpy.types.Operator):
         msg = data.message.encode('utf-8')
         socket_pub = bpy.types.WindowManager.socket
 
-        socket_pub.send_multipart([login, msg])
+        socket_pub.send_multipart([b'msg', login, msg])
         data.message = ""
         self.report({'INFO'}, f"Message: {msg.decode('utf-8')} sent")
 
         return {'FINISHED'}
+
+class WM_OT_SendFile(bpy.types.Operator):
+    bl_idname = "wm.send_file"
+    bl_label = "Send File"
+
+    def execute(self, context):
+        data = context.window_manager.socket_settings
+        login =  data.login.encode('ascii')
+        path = '/tmp/0mq/test.txt'
+        file = open(path, 'rb')
+        socket = bpy.types.WindowManager.socket
+
+        data = file.read()
+        socket.send_multipart([b'file', login, data])
+        self.report({'INFO'}, 'File sent succesfully')
+
+        return {'FINISHED'}
+
+class WM_OT_SendScreen(bpy.types.Operator):
+    bl_idname = "wm.send_screen"
+    bl_label = "Send Screen"
+
+    def execute(self, context):
+        data = context.window_manager.socket_settings
+        login =  data.login.encode('ascii')
+        socket = bpy.types.WindowManager.socket
+
+        screenshot("screen.png")
+        file = open("/tmp/screen.png", 'rb')
+
+
+        # data = file.read(CHUNK_SIZE)
+        data = file.read()
+        socket.send_multipart([b'img', login, data])
+        self.report({'INFO'}, 'Screen sent succesfully')
+
+        return {'FINISHED'}
+
+
+
 
 class WM_OT_CloseConnection(bpy.types.Operator):
     bl_idname = "wm.close_server"
@@ -111,12 +186,14 @@ class WM_OT_CloseConnection(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
 class WM_OT_CloseClient(bpy.types.Operator):
     bl_idname = "wm.close_client"
     bl_label = "Close connection"
 
     def execute(self, context):
+
+        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.send_periodically):
+            bpy.app.timers.unregister(WM_OT_EstablishConnection.send_periodically())
 
         try:
             bpy.types.WindowManager.socket.close()
@@ -131,3 +208,39 @@ class WM_OT_CloseClient(bpy.types.Operator):
         return {'FINISHED'}
 
 
+
+def screenshot(P_filename, P_path = None):
+  L_saveAs = P_filename
+  L_saveAs = os.path.join(P_path, L_saveAs) if P_path else os.path.join("/tmp", L_saveAs)
+  print("Scene saved in " + L_saveAs)
+
+  #XXX: switching to 3D full view = maximize scene in main window
+  #bpy.context.window.screen = bpy.data.screens['3D View Full']
+  for window in bpy.context.window_manager.windows:
+    screen = window.screen
+    for area in screen.areas:
+      print("Area   : " + str(area.type))
+      if area.type == 'VIEW_3D':
+        for space in area.spaces:
+          print("Space  : " + str(space.type))
+          if space.type == 'VIEW_3D':
+            #space.viewport_shade = 'RENDERED'
+            for region in area.regions:
+              print("Region  : " + str(region.type))
+              if region.type == 'WINDOW':
+                L_altBpyCtx = {                        # defining alternative context (allowing modifications without altering real one)
+                  'area'      : area                   # our 3D View (first found)
+                , 'blend_data': bpy.context.blend_data # just to suppress PyContext warning, doesn't seem to have any effect
+                #, 'edit_text' : bpy.context.edit_text  # just to suppress PyContext warning, doesn't seem to have any effect
+                , 'region'    : None                   # just to suppress PyContext warning, doesn't seem to have any effect
+                #, 'scene'     : bpy.context.scene
+                , 'scene'     : bpy.context.scene
+                , 'space'     : space
+                , 'screen'    : window.screen
+                #, 'window'    : bpy.context.window     # current window, could also copy context
+                , 'window'    : window                 # current window, could also copy context
+                }
+                bpy.ops.screen.screenshot(L_altBpyCtx, filepath = L_saveAs, full = False, check_existing=False)
+                break #XXX: limit to the window of the 3D View
+            break #XXX: limit to the corresponding space (3D View)
+        break #XXX: limit to the first 3D View (area)

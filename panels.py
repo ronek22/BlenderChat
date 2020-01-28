@@ -11,7 +11,7 @@ from bpy.types import (Panel,
                        Operator,
                        PropertyGroup,
                        )
-
+import bpy
 # ------------------------------------------------------------------------
 #    Scene Properties
 # ------------------------------------------------------------------------
@@ -52,6 +52,12 @@ class ChatProperties(PropertyGroup):
         default=False,
     )
 
+    path : StringProperty(
+        name="Server path:",
+        description="Select where images and .blend files from student will be saved",
+        default='/tmp/blend_support',
+        subtype='DIR_PATH'
+    )
 
 
 
@@ -79,13 +85,24 @@ class OBJECT_PT_CustomPanel(Panel):
 
             if mytool.connection_type == 'Client':
                 layout.prop(mytool, "login")
+            else:
+                layout.prop(mytool, 'path')
 
             layout.operator("wm.establish_connection")
         else:
             if mytool.connection_type == 'Client':
                 layout.prop(mytool, "message")
-                layout.operator("wm.send_message")
+                row = layout.row()
+                row.operator("wm.send_message")
+                row.operator("wm.send_file")
+                row.operator("wm.send_screen")
                 layout.operator("wm.close_client")
+
+               
+
+                tex = bpy.data.textures[0]
+                col = layout.box().column()
+                col.template_preview(tex)
             else:
 
                 # layout.prop(mytool, "is_connected")
