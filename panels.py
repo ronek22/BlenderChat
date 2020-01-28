@@ -60,6 +60,14 @@ class ChatProperties(PropertyGroup):
     )
 
 
+class PIPZMQProperties(PropertyGroup):
+    """pip install and pyzmq install Properties"""
+    install_status: StringProperty(name="Install status",
+                                   description="Install status messages",
+                                   default="pyzmq not found in Python distribution",
+                                   )
+
+
 
 
 class OBJECT_PT_CustomPanel(Panel):
@@ -76,38 +84,51 @@ class OBJECT_PT_CustomPanel(Panel):
         return context.object is not None
 
     def draw(self, context):
+
         layout = self.layout
         mytool = context.window_manager.socket_settings
+        
+        try:
+            import zmq
 
-        if not mytool.is_connected:
-            layout.prop(mytool, "connection_type", text="") 
-            layout.prop(mytool, "port")
 
-            if mytool.connection_type == 'Client':
-                layout.prop(mytool, "login")
+            if not mytool.is_connected:
+                layout.prop(mytool, "connection_type", text="") 
+                layout.prop(mytool, "port")
+
+                if mytool.connection_type == 'Client':
+                    layout.prop(mytool, "login")
+                else:
+                    layout.prop(mytool, 'path')
+
+                layout.operator("wm.establish_connection")
             else:
-                layout.prop(mytool, 'path')
+                if mytool.connection_type == 'Client':
+                    layout.prop(mytool, "message")
+                    row = layout.row()
+                    row.operator("wm.send_message")
+                    row.operator("wm.send_file")
+                    row.operator("wm.send_screen")
+                    layout.operator("wm.close_client")
 
-            layout.operator("wm.establish_connection")
-        else:
-            if mytool.connection_type == 'Client':
-                layout.prop(mytool, "message")
-                row = layout.row()
-                row.operator("wm.send_message")
-                row.operator("wm.send_file")
-                row.operator("wm.send_screen")
-                layout.operator("wm.close_client")
+                
 
-               
+                    tex = bpy.data.textures[0]
+                    col = layout.box().column()
+                    col.template_preview(tex)
+                else:
 
-                tex = bpy.data.textures[0]
-                col = layout.box().column()
-                col.template_preview(tex)
-            else:
+                    # layout.prop(mytool, "is_connected")
+                    layout.prop(mytool, "login")
+                    layout.prop(mytool, "message")
+                    layout.operator("wm.close_server")
+        except ImportError:
+            # keep track of how our installation is going
+            install_props = context.window_manager.install_props
 
-                # layout.prop(mytool, "is_connected")
-                layout.prop(mytool, "login")
-                layout.prop(mytool, "message")
-                layout.operator("wm.close_server")
+            # button: enable pip and install pyzmq if not available
+            layout.operator("pipzmq.pip_pyzmq")
+            # show status messages (kinda cramped)
+            layout.prop(install_props, "install_status")  
 
         

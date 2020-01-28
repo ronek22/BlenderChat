@@ -1,6 +1,5 @@
 import bpy
 from threading import Thread
-import zmq 
 from datetime import datetime
 import os
 
@@ -16,6 +15,8 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
 
         print(f"MODE: {self.socket_settings.connection_type}")
 
+        globals()["zmq"] = __import__("zmq")
+
         if self.socket_settings.connection_type == 'Client':
             return self.run_student(context)
         else:
@@ -23,6 +24,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
 
     # region Lecturer
     def run_lecturer(self, context):
+
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
             # Creating a ZeroMQ context
@@ -46,6 +48,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         return {'FINISHED'}
 
     def timed_msg_poller(self):
+
         socket = bpy.types.WindowManager.socket
 
         # print(f"Timed poll: {datetime.now().strftime('%HH:%MM:%SS.%f')}")
@@ -244,3 +247,45 @@ def screenshot(P_filename, P_path = None):
                 break #XXX: limit to the window of the 3D View
             break #XXX: limit to the corresponding space (3D View)
         break #XXX: limit to the first 3D View (area)
+
+
+class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
+    """Enables and updates pip, and installs pyzmq"""  # Use this as a tooltip for menu items and buttons.
+
+    bl_idname = "pipzmq.pip_pyzmq"  # Unique identifier for buttons and menu items to reference.
+    bl_label = "Enable pip & install pyzmq"  # Display name in the interface.
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):  # execute() is called when running the operator.
+        install_props = context.window_manager.install_props
+        install_props.install_status = "Preparing to enable pip..."
+
+        import sys
+        import subprocess  # use Python executable (for pip usage)
+        from pathlib import Path
+        
+        # OS independent (Windows: bin\python.exe; Linux: bin/python3.7m)
+        py_path = Path(sys.prefix) / "bin"
+        py_exec = str(next(py_path.glob("python*")))  # first file that starts with "python" in "bin" dir
+        # TODO check permission rights
+        if subprocess.call([py_exec, "-m", "ensurepip"]) != 0:
+            install_props.install_status += "\nCouldn't activate pip."
+            self.report({'ERROR'}, "Couldn't activate pip.")
+            return {'CANCELLED'}
+        install_props.install_status += "\nPip activated! Updating pip..."
+        self.report({'INFO'}, "Pip activated! Updating pip...")
+        if subprocess.call([py_exec, "-m", "pip", "install", "--upgrade", "pip"]) != 0:
+            install_props.install_status += "\nCouldn't update pip."
+            self.report({'ERROR'}, "Couldn't update pip.")
+            return {'CANCELLED'}
+        install_props.install_status += "\nPip updated! Installing pyzmq..."
+        self.report({'INFO'}, "Pip updated! Installing pyzmq...")
+
+        if subprocess.call([py_exec, "-m", "pip", "install", "pyzmq"]) != 0:
+            install_props.install_status += "\nCouldn't install pyzmq."
+            self.report({'ERROR'}, "Couldn't install pyzmq.")
+            return {'CANCELLED'}
+        install_props.install_status += "\npyzmq installed! READY!"
+        self.report({'INFO'}, "pyzmq installed! READY!")
+
+        return {'FINISHED'}  # Lets Blender know the operator finished successfully
