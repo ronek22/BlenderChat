@@ -55,7 +55,7 @@ class ChatProperties(PropertyGroup):
     path : StringProperty(
         name="Server path:",
         description="Select where images and .blend files from student will be saved",
-        default='/tmp/blend_support',
+        default='/tmp',
         subtype='DIR_PATH'
     )
 
@@ -73,10 +73,15 @@ class PIPZMQProperties(PropertyGroup):
 class OBJECT_PT_CustomPanel(Panel):
     bl_label = "Chat Panel"
     bl_idname = "OBJECT_PT_custom_panel"
+    bl_category = "Chat"
+
     bl_space_type = "VIEW_3D"   
     bl_region_type = "UI"
-    bl_category = "Chat"
     bl_context = "objectmode" 
+
+    # bl_space_type = "PROPERTIES"   
+    # bl_region_type = "WINDOW"
+    # bl_context = "scene" 
 
 
     @classmethod
@@ -112,10 +117,10 @@ class OBJECT_PT_CustomPanel(Panel):
                     layout.operator("wm.close_client")
 
                 
-
-                    tex = bpy.data.textures[0]
-                    col = layout.box().column()
-                    col.template_preview(tex)
+                    # Image preview
+                    # tex = bpy.data.textures[0]
+                    # col = layout.box().column()
+                    # col.template_preview(tex)
                 else:
 
                     # layout.prop(mytool, "is_connected")

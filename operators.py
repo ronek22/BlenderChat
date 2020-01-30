@@ -64,7 +64,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                 mode = mode.decode()
 
                 if mode == 'file':
-                    path = f"{self.socket_settings.path}/{user}.txt" 
+                    path = f"{self.socket_settings.path}/{user}.blend" 
                     with open(path, 'wb') as file:
                         file.write(msg)
                 elif mode == 'img':
@@ -108,10 +108,6 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         return 1
     # endregion
 
-    
-
-    
-
 
 class WM_OT_SendMessage(bpy.types.Operator):
     bl_idname = "wm.send_message"
@@ -134,15 +130,21 @@ class WM_OT_SendFile(bpy.types.Operator):
     bl_label = "Send File"
 
     def execute(self, context):
-        data = context.window_manager.socket_settings
-        login =  data.login.encode('ascii')
-        path = '/tmp/0mq/test.txt'
-        file = open(path, 'rb')
+        # save current blend file, only work for linux now
         socket = bpy.types.WindowManager.socket
 
-        data = file.read()
+        path = '/tmp/current.blend'
+        bpy.ops.wm.save_as_mainfile(filepath=path, check_existing=False)
+        self.report({'INFO'}, 'Current file save to tmp/current.blend')
+        
+        data = context.window_manager.socket_settings
+        login =  data.login.encode('ascii')
+        
+
+        with open(path, 'rb') as file:
+            data = file.read()
         socket.send_multipart([b'file', login, data])
-        self.report({'INFO'}, 'File sent succesfully')
+        self.report({'INFO'}, 'Blend file sent succesfully')
 
         return {'FINISHED'}
 
@@ -156,13 +158,12 @@ class WM_OT_SendScreen(bpy.types.Operator):
         socket = bpy.types.WindowManager.socket
 
         screenshot("screen.png")
-        file = open("/tmp/screen.png", 'rb')
+        with open("/tmp/screen.png", 'rb') as file:
+            data = file.read()
 
-
-        # data = file.read(CHUNK_SIZE)
-        data = file.read()
         socket.send_multipart([b'img', login, data])
         self.report({'INFO'}, 'Screen sent succesfully')
+
 
         return {'FINISHED'}
 
