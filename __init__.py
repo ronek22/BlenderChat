@@ -24,13 +24,18 @@ bl_info = {
 
 import bpy
 from bpy.props import PointerProperty
-from . operators import WM_OT_EstablishConnection, WM_OT_SendMessage, WM_OT_CloseConnection
-from . panels import ChatProperties, OBJECT_PT_CustomPanel
+from . operators import PIPZMQ_OT_pip_pyzmq, WM_OT_EstablishConnection, WM_OT_SendScreen, WM_OT_SendFile, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_CloseClient
+from . panels import ChatProperties, OBJECT_PT_CustomPanel, PIPZMQProperties
 
 classes = (
+        PIPZMQProperties,
+        PIPZMQ_OT_pip_pyzmq,
         WM_OT_EstablishConnection,
         WM_OT_SendMessage,
         WM_OT_CloseConnection,
+        WM_OT_CloseClient,
+        WM_OT_SendFile,
+        WM_OT_SendScreen,
         ChatProperties,
         OBJECT_PT_CustomPanel
     )
@@ -42,13 +47,15 @@ def register():
     for cls in classes:
         register_class(cls)
 
-    bpy.types.Scene.my_tool = PointerProperty(type=ChatProperties)
+    bpy.types.WindowManager.install_props = PointerProperty(type=PIPZMQProperties)
+    bpy.types.WindowManager.socket_settings = PointerProperty(type=ChatProperties)
 
 def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
         unregister_class(cls)
-    del bpy.types.Scene.my_tool
+    del bpy.types.WindowManager.socket_settings
+    del bpy.types.WindowManager.install_props
 
 
 if __name__ == "__main__":
