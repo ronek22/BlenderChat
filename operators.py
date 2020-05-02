@@ -33,7 +33,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             # store our connection in Blender's WindowManager for access in self.timed_msg_poller()
             bpy.types.WindowManager.socket = self.zmq_ctx.socket(zmq.SUB)
             bpy.types.WindowManager.socket.bind(self.url)  # publisher connects to this (subscriber)
-            bpy.types.WindowManager.socket.setsockopt(zmq.SUBSCRIBE, ''.encode('ascii'))
+            bpy.types.WindowManager.socket.setsockopt(zmq.SUBSCRIBE, ''.encode('ascii')) # subcribe by prefix, '' get everything
             self.report({'INFO'}, "Sub bound to: {}\nWaiting for data...".format(self.url))
 
             # poller socket for checking server replies periodically 
@@ -169,7 +169,6 @@ class WM_OT_SendScreen(bpy.types.Operator):
 
 
 
-
 class WM_OT_CloseConnection(bpy.types.Operator):
     bl_idname = "wm.close_server"
     bl_label = "Close connection"
@@ -212,7 +211,7 @@ class WM_OT_CloseClient(bpy.types.Operator):
         return {'FINISHED'}
 
 
-
+# save screenshot
 def screenshot(P_filename, P_path = None):
   L_saveAs = P_filename
   L_saveAs = os.path.join(P_path, L_saveAs) if P_path else os.path.join("/tmp", L_saveAs)
@@ -249,7 +248,7 @@ def screenshot(P_filename, P_path = None):
             break #XXX: limit to the corresponding space (3D View)
         break #XXX: limit to the first 3D View (area)
 
-
+# install pyzmq
 class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
     """Enables and updates pip, and installs pyzmq"""  # Use this as a tooltip for menu items and buttons.
 
