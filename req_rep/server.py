@@ -5,7 +5,10 @@ from pprint import pprint
 port = 5555
 context = zmq.Context()
 socket = context.socket(zmq.REP)
-address = socket.bind(f"tcp://0.0.0.0:{port}")
+subscriber = context.socket(zmq.SUB)
+subscriber.setsockopt(zmq.SUBSCRIBE, b'')
+subscriber.bind(f"tcp://0.0.0.0:5554")
+socket.bind(f"tcp://0.0.0.0:{port}")
 noRequest = 1
 # how to bind to random available port
 # selected_port = socket.bind_to_random_port('tcp://*')
