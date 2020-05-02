@@ -9,11 +9,16 @@ subscriber = context.socket(zmq.SUB)
 subscriber.setsockopt(zmq.SUBSCRIBE, b'')
 subscriber.bind(f"tcp://0.0.0.0:5554")
 socket.bind(f"tcp://0.0.0.0:{port}")
+
 noRequest = 1
 # how to bind to random available port
 # selected_port = socket.bind_to_random_port('tcp://*')
 
 clients = {}
+
+poller = zmq.Poller()
+poller.register(subscriber, zmq.POLLIN)
+poller.register(socket, zmq.POLLIN|zmq.POLLOUT)
 
 #region Thoughts
 # Serwer musi nasluchiwac
@@ -27,13 +32,25 @@ clients = {}
 # Bądź serwer podczas wysyłania odpowiedzi
 #endregion
 while True: 
-    message = socket.recv_multipart()
-    client_id = message[0].decode()
-    clients[client_id] = clients.get(client_id) + 1 if client_id in clients else  1
-    print(f"Received message {noRequest} from {client_id}: {message[1].decode()}")
+    evts = dict(poller.poll(timeout=100))
 
-    sleep(.1)
 
-    socket.send_string("World")
-    # pprint(clients)
+    if subscriber in evts:
+        print("SUB PART")
+        id, msg = subscriber.recv_multipart()
+        print(f"Received message from publisher {id.decode()} : {msg.decode()}")
+            
+    if socket in evts:
+        print("REP PART")
+        message = socket.recv_multipart()
+        client_id = message[0].decode()
+        clients[client_id] = clients.get(client_id) + 1 if client_id in clients else  1
+        print(f"Received message {noRequest} from {client_id}: {message[1].decode()}")
+
+        sleep(.1)
+
+        socket.send_string("World")
+    
+
+    # PART FOR REP
     noRequest+=1
