@@ -6,9 +6,9 @@ import argparse
 
 class Client:
     def __init__(self, ip, port=5555):
-        self.context = zmq.Context()
-        self.req = context.socket(zmq.REQ).connect(f'tcp://{ip}:{port}')
-        self.pub = context.socket(zmq.PUB).connect(f'tcp://{ip}:{port-1}')
+        self.context = zmq.Context().instance()
+        self.req = self.context.socket(zmq.REQ).connect(f'tcp://{ip}:{port}')
+        self.pub = self.context.socket(zmq.PUB).connect(f'tcp://{ip}:{port-1}')
         self.id = uuid.uuid4().urn[9:]
 
     def send_using_pub(self, message='Hello'):
