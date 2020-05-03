@@ -10,11 +10,17 @@ from bpy.types import (Panel,
                        Menu,
                        Operator,
                        PropertyGroup,
+                       UIList
                        )
 import bpy
 # ------------------------------------------------------------------------
 #    Scene Properties
 # ------------------------------------------------------------------------
+
+class StudentObject(PropertyGroup):
+    name: StringProperty()
+    rep_socket: StringProperty
+
 
 class ChatProperties(PropertyGroup):
 
@@ -59,7 +65,6 @@ class ChatProperties(PropertyGroup):
         subtype='DIR_PATH'
     )
 
-
 class PIPZMQProperties(PropertyGroup):
     """pip install and pyzmq install Properties"""
     install_status: StringProperty(name="Install status",
@@ -67,7 +72,15 @@ class PIPZMQProperties(PropertyGroup):
                                    default="pyzmq not found in Python distribution",
                                    )
 
+class STUDENT_UL_items(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        split = layout.split(factor=0.3)
+        split.label(text="Student: %d" % (index))
+        #split.prop(item, "name", text="", emboss=False, translate=False, icon=custom_icon)
+        split.label(text=item.name) # avoids renaming the item by accident
 
+    def invoke(self, context, event):
+        pass  
 
 
 class OBJECT_PT_CustomPanel(Panel):
@@ -90,8 +103,11 @@ class OBJECT_PT_CustomPanel(Panel):
 
     def draw(self, context):
 
+
         layout = self.layout
         mytool = context.window_manager.socket_settings
+        wm = context.window_manager
+        scene = bpy.context.scene
         
         try:
             import zmq
@@ -126,6 +142,20 @@ class OBJECT_PT_CustomPanel(Panel):
                     # layout.prop(mytool, "is_connected")
                     layout.prop(mytool, "login")
                     layout.prop(mytool, "message")
+
+                    rows = 2
+                    row = layout.row()
+                    row.template_list("STUDENT_UL_items", "", scene, "students", scene, "student_index", rows=rows)
+
+                    col = row.column(align=True)
+                    col.operator("student.list_action", icon="ZOOM_IN", text="").action = "ADD"
+                    col.operator("student.list_action", icon="ZOOM_OUT", text="").action = "REMOVE"
+
+                    row = layout.row()
+                    col = row.column(align=True)
+                    row = col.row(align=True)
+                    row.operator('student.send', icon="LINENUMBERS_ON")
+
                     layout.operator("wm.close_server")
         except ImportError:
             # keep track of how our installation is going

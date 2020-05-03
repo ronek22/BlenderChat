@@ -3,8 +3,13 @@ from threading import Thread
 from datetime import datetime
 import os
 from pprint import pprint
+import functools
 
 CHUNK_SIZE = 250000
+
+def get_default_context():
+    window = bpy.context.window_manager.windows[0]
+    return {'window': window, 'screen': window.screen}
 
 class WM_OT_EstablishConnection(bpy.types.Operator):
     bl_idname = "wm.establish_connection"
@@ -49,13 +54,15 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             self.socket_settings.is_connected = True
 
             # have blender call our data listeting function in the background
-            bpy.app.timers.register(self.timed_msg_poller)
+            bpy.app.timers.register(functools.partial(self.timed_msg_poller, context))
         return {'FINISHED'}
 
-    def timed_msg_poller(self):
+    def timed_msg_poller(self, context):
+        # ctx = get_default_context()
 
         socket = bpy.types.WindowManager.socket
-        students = bpy.types.WindowManager.students
+        scene = context.scene
+        # students = bpy.types.WindowManager.students
         # print(f"Timed poll: {datetime.now().strftime('%HH:%MM:%SS.%f')}")
 
         if socket:
@@ -69,8 +76,17 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                 user = self.socket_settings.login = user.decode('ascii')
                 mode = mode.decode()
 
-                students[user] = students.get(user, '.')
+                if user not in [x.name for x in scene.students]:
+                    student = scene.students.add()
+                    student.name = user
+                    student.id = len(scene.students)
+                    scene.student_index = len(scene.students)-1
+
+                students = [x.name for x in scene.students]
                 pprint(students)
+
+                # students[user] = students.get(user, '.')
+                # pprint(students)
 
                 if mode == 'file':
                     path = f"{self.socket_settings.path}/{user}.blend" 
@@ -217,6 +233,66 @@ class WM_OT_CloseClient(bpy.types.Operator):
         socket_settings = context.window_manager.socket_settings
         socket_settings.is_connected = False
 
+        return {'FINISHED'}
+
+
+class STUDENT_OT_actions(bpy.types.Operator):
+    bl_idname = "student.list_action"
+    bl_label = "List Actions"
+    bl_description = "Managing list of students"
+    bl_options = {'REGISTER'}
+
+    action: bpy.props.EnumProperty(items=(('ADD', "Add", ""),('REMOVE', "Remove", ""),))
+
+    def invoke(self, context, event):
+
+        wm = bpy.types.WindowManager
+        scene = context.scene
+        idx = scene.student_index
+
+        try:
+            student = scene.students[idx]
+        except IndexError:
+            print("Student not found. Error with list")
+        else:
+            if self.action == "REMOVE":
+                scene.student_index -= 1
+                scene.students.remove(idx)
+                self.report({'INFO'}, f"Item {student.name} remove")
+        if self.action == "ADD":
+            if context.object:
+                student = scene.students.add()
+                student.name = 'Alvaro' # TODO: CANT BE CONSTANT
+                student.id = len(scene.students)
+                scene.student_index = len(scene.students)-1
+                self.report({'INFO'}, f"{scene.name} added to list")
+            else:
+                self.report({'INFO'}, 'Nothing selected in the Viewport')
+        return {"FINISHED"}
+
+class STUDENT_OT_send(bpy.types.Operator):
+    bl_idname = "student.send"
+    bl_label = "Send request"
+    bl_description = "Use it for load student .blend file"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return bool(context.scene.students)
+
+    def execute(self, context):
+        scene = context.scene
+        idx = scene.student_index
+
+        try:
+            student = scene.students[idx]
+        except IndexError:
+            self.report({'INFO'}, "Nothing selected in the list")
+            return {'CANCELLED'}
+
+        # TODO: CODE FOR SENDING REQUEST TO STUDENT
+
+        self.report({'INFO'}, f"Request for file send to {student.name}")
         return {'FINISHED'}
 
 

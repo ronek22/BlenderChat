@@ -23,9 +23,9 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import PointerProperty
-from . operators import PIPZMQ_OT_pip_pyzmq, WM_OT_EstablishConnection, WM_OT_SendScreen, WM_OT_SendFile, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_CloseClient
-from . panels import ChatProperties, OBJECT_PT_CustomPanel, PIPZMQProperties
+from bpy.props import PointerProperty, CollectionProperty, IntProperty
+from . operators import PIPZMQ_OT_pip_pyzmq, STUDENT_OT_actions, STUDENT_OT_send,WM_OT_EstablishConnection, WM_OT_SendScreen, WM_OT_SendFile, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_CloseClient
+from . panels import STUDENT_UL_items,StudentObject, ChatProperties, OBJECT_PT_CustomPanel, PIPZMQProperties
 
 classes = (
         PIPZMQProperties,
@@ -36,6 +36,10 @@ classes = (
         WM_OT_CloseClient,
         WM_OT_SendFile,
         WM_OT_SendScreen,
+        STUDENT_UL_items,
+        STUDENT_OT_actions,
+        STUDENT_OT_send,
+        StudentObject,
         ChatProperties,
         OBJECT_PT_CustomPanel
     )
@@ -49,6 +53,9 @@ def register():
 
     bpy.types.WindowManager.install_props = PointerProperty(type=PIPZMQProperties)
     bpy.types.WindowManager.socket_settings = PointerProperty(type=ChatProperties)
+    # SCENE OR WIDNOW MANAGER ???
+    bpy.types.Scene.students = CollectionProperty(type=StudentObject)
+    bpy.types.Scene.student_index = IntProperty()
 
 def unregister():
     from bpy.utils import unregister_class
@@ -56,6 +63,8 @@ def unregister():
         unregister_class(cls)
     del bpy.types.WindowManager.socket_settings
     del bpy.types.WindowManager.install_props
+    del bpy.types.Scene.students
+    del bpy.types.Scene.student_index
 
 
 if __name__ == "__main__":
