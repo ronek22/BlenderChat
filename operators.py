@@ -2,6 +2,7 @@ import bpy
 from threading import Thread
 from datetime import datetime
 import os
+from pprint import pprint
 
 CHUNK_SIZE = 250000
 
@@ -25,6 +26,8 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
     # region Lecturer
     def run_lecturer(self, context):
 
+        bpy.types.WindowManager.students = {}
+
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
             # Creating a ZeroMQ context
@@ -35,6 +38,8 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             bpy.types.WindowManager.socket.bind(self.url)  # publisher connects to this (subscriber)
             bpy.types.WindowManager.socket.setsockopt(zmq.SUBSCRIBE, ''.encode('ascii')) # subcribe by prefix, '' get everything
             self.report({'INFO'}, "Sub bound to: {}\nWaiting for data...".format(self.url))
+
+            bpy.types.WindowManager.req = self.zmq_ctx.socket(zmq.REQ)
 
             # poller socket for checking server replies periodically 
             self.poller = zmq.Poller()
@@ -50,18 +55,22 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
     def timed_msg_poller(self):
 
         socket = bpy.types.WindowManager.socket
-
+        students = bpy.types.WindowManager.students
         # print(f"Timed poll: {datetime.now().strftime('%HH:%MM:%SS.%f')}")
 
         if socket:
             # get sockets with messages
             # don't wait for msgs
             sockets = dict(self.poller.poll(0))
+            
 
             if socket in sockets:
                 mode, user, msg = socket.recv_multipart()
                 user = self.socket_settings.login = user.decode('ascii')
                 mode = mode.decode()
+
+                students[user] = students.get(user, '.')
+                pprint(students)
 
                 if mode == 'file':
                     path = f"{self.socket_settings.path}/{user}.blend" 
