@@ -26,6 +26,9 @@ def get_ip(family):
 def get_public_ip():
     return get('https://api.ipify.org').text
 
+def fill_network_enum():
+    pass
+
 
 ips = list(get_ip(socket.AF_INET))
 pprint(ips)

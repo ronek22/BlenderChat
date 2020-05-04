@@ -9,6 +9,9 @@ subscriber = context.socket(zmq.SUB)
 subscriber.setsockopt(zmq.SUBSCRIBE, b'')
 subscriber.bind(f"tcp://0.0.0.0:5554")
 socket.bind(f"tcp://0.0.0.0:{port}")
+port = socket.bind_to_random_port('tcp://0.0.0.0',)
+print(f"Socket bind on port: {port}")
+
 
 noRequest = 1
 # how to bind to random available port

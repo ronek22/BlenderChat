@@ -31,8 +31,6 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
     # region Lecturer
     def run_lecturer(self, context):
 
-        bpy.types.WindowManager.students = {}
-
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
             # Creating a ZeroMQ context
@@ -44,49 +42,45 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             bpy.types.WindowManager.socket.setsockopt(zmq.SUBSCRIBE, ''.encode('ascii')) # subcribe by prefix, '' get everything
             self.report({'INFO'}, "Sub bound to: {}\nWaiting for data...".format(self.url))
 
+            # REQ SOCKET FOR ASKING STUDENTS FOR .BLEND FILE
             bpy.types.WindowManager.req = self.zmq_ctx.socket(zmq.REQ)
 
             # poller socket for checking server replies periodically 
             self.poller = zmq.Poller()
-            # (socket, mode)
             self.poller.register(bpy.types.WindowManager.socket, zmq.POLLIN)
-
             self.socket_settings.is_connected = True
-
             # have blender call our data listeting function in the background
-            bpy.app.timers.register(functools.partial(self.timed_msg_poller, context))
+            bpy.app.timers.register(functools.partial(self.timed_msg_poller_for_lecturer, context))
         return {'FINISHED'}
 
-    def timed_msg_poller(self, context):
-        # ctx = get_default_context()
+    def handle_student_list(self, scene, user, rep_socket):
+        if user not in [x.name for x in scene.students]:
+            student = scene.students.add()
+            student.name = user
+            student.rep_socket = rep_socket.decode()
+            student.id = len(scene.students)
+            scene.student_index = len(scene.students)-1
+
+        students = [(x.name, x.rep_socket) for x in scene.students]
+        pprint(students)
+
+    def timed_msg_poller_for_lecturer(self, context):
 
         socket = bpy.types.WindowManager.socket
-        scene = context.scene
-        # students = bpy.types.WindowManager.students
-        # print(f"Timed poll: {datetime.now().strftime('%HH:%MM:%SS.%f')}")
 
         if socket:
             # get sockets with messages
             # don't wait for msgs
             sockets = dict(self.poller.poll(0))
             
-
             if socket in sockets:
-                mode, user, msg = socket.recv_multipart()
+                mode, rep_socket, user, msg = socket.recv_multipart()
                 user = self.socket_settings.login = user.decode('ascii')
                 mode = mode.decode()
 
-                if user not in [x.name for x in scene.students]:
-                    student = scene.students.add()
-                    student.name = user
-                    student.id = len(scene.students)
-                    scene.student_index = len(scene.students)-1
+                # TODO: check if recv_multipart has 4 parts if yes handle students otherwise not
 
-                students = [x.name for x in scene.students]
-                pprint(students)
-
-                # students[user] = students.get(user, '.')
-                # pprint(students)
+                self.handle_student_list(context.scene, user, rep_socket)
 
                 if mode == 'file':
                     path = f"{self.socket_settings.path}/{user}.blend" 
@@ -96,9 +90,13 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                     path = f"{self.socket_settings.path}/{user}.png"
                     with open(path,'wb') as file:
                         file.write(msg)
-                else:
+                elif mode == 'msg':
                     msg = self.socket_settings.message = msg.decode('utf-8')
                     print(f"{user} > {msg}")
+                elif mode == 'intro':
+                    msg = self.socket_settings.message = msg.decode('utf-8')
+                    print(f"REPLY SOCKET FOR {user}: {rep_socket.decode('utf-8')}")
+
                 # How to report from timer?         
             return 0.001
     # endregion
@@ -108,19 +106,72 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
         if not self.socket_settings.is_connected:
             self.report({'INFO'}, 'Connecting to Lecturer...')
             self.zmq_ctx = zmq.Context().instance()
+            # TODO: CONNECT TO GIVEN URL BY LECTURER
             self.url = f"tcp://{'127.0.0.1'}:{self.socket_settings.port}"
             
             bpy.types.WindowManager.socket = self.zmq_ctx.socket(zmq.PUB)
             bpy.types.WindowManager.socket.connect(self.url)
+            from time import sleep
+            sleep(.1)
             self.report({'INFO'}, "Student connected to: {}".format(self.url))
+
+
+            # REPLY STUDENT SERVER
+            rep_address = f"tcp://{context.scene.networks}"
+            print(f"REP-ADDRESS: {rep_address}")
+            bpy.types.WindowManager.rep = self.zmq_ctx.socket(zmq.REP)
+            rep_port = bpy.types.WindowManager.rep.bind_to_random_port(rep_address)
+            bpy.types.WindowManager.rep_address = f"{rep_address}:{rep_port}"
+
+            # NON-BLOCKING BEHAVIOR OF REP SERVER GUARANTEED BY POLLER
+            self.poller = zmq.Poller()
+            self.poller.register(bpy.types.WindowManager.rep, zmq.POLLIN)
             self.socket_settings.is_connected = True
+
+            # INTRODUCE TO STUDENT TO LECTURER
+            data = context.window_manager.socket_settings
+            rep_socket = bpy.types.WindowManager.rep_address.encode()
+            login =  data.login.encode('ascii')
+            msg = bytes("Dzień Dobry!", 'utf-8')
+            print(f"{rep_socket.decode()} | {login.decode('ascii')} | {msg.decode()}")
+            bpy.types.WindowManager.socket.send_multipart([b'intro', rep_socket, login, msg])
+            data.message = ""
+
+            self.socket_settings.is_connected = True
+
+            # bpy.app.timers.register(functools.partial(self.timed_msg_poller_for_student, context))
+            bpy.app.timers.register(self.timed_msg_poller_for_student)
+
 
             # test of periodically send default message
             # bpy.app.timers.register(self.send_periodically)
 
         return {'FINISHED'}
 
+    def timed_msg_poller_for_student(self):
 
+        socket = bpy.types.WindowManager.rep
+
+        if socket:
+            sockets = dict(self.poller.poll(0))
+            
+            if socket in sockets:
+                msg = socket.recv_string()
+
+                if msg == "SEND FILE":
+                    path = '/tmp/current.blend'
+                    bpy.ops.wm.save_as_mainfile(filepath=path, check_existing=False)
+                    
+                    data = self.socket_settings
+                    login =  data.login.encode('ascii')
+                    
+                    with open(path, 'rb') as file:
+                        data = file.read()
+                    socket.send_multipart([login, data])
+
+                
+                # How to report from timer?         
+            return 0.001
 
     def send_periodically(self):
         socket = bpy.types.WindowManager.socket
@@ -140,11 +191,12 @@ class WM_OT_SendMessage(bpy.types.Operator):
 
     def execute(self, context):
         data = context.window_manager.socket_settings
+        rep_socket = context.window_manager.rep_address.encode('utf-8')
         login =  data.login.encode('ascii')
         msg = data.message.encode('utf-8')
         socket_pub = bpy.types.WindowManager.socket
 
-        socket_pub.send_multipart([b'msg', login, msg])
+        socket_pub.send_multipart([b'msg', rep_socket, login, msg])
         data.message = ""
         self.report({'INFO'}, f"Message: {msg.decode('utf-8')} sent")
 
@@ -200,15 +252,23 @@ class WM_OT_CloseConnection(bpy.types.Operator):
 
     def execute(self, context):
         socket_settings = context.window_manager.socket_settings
-        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.timed_msg_poller):
-            bpy.app.timers.unregister(WM_OT_EstablishConnection.timed_msg_poller())
+        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.timed_msg_poller_for_lecturer):
+            bpy.app.timers.unregister(WM_OT_EstablishConnection.timed_msg_poller_for_lecturer())
 
         try:
             bpy.types.WindowManager.socket.close()
-            self.report({'INFO'}, 'Lecturer socket closed')
+            self.report({'INFO'}, 'Lecturer sub socket closed')
         except AttributeError:
-            self.report({'INFO'}, 'Lecturer socket was not active')
+            self.report({'INFO'}, 'Lecturer sub socket was not active')
 
+        try:
+            bpy.types.WindowManager.req.close()
+            self.report({'INFO'}, 'Lecturer req socket closed')
+        except AttributeError:
+            self.report({'INFO'}, 'Lecturer req socket was not active')
+
+
+        bpy.types.WindowManager.req = None
         bpy.types.WindowManager.socket = None
         socket_settings.is_connected = False
 
@@ -223,13 +283,24 @@ class WM_OT_CloseClient(bpy.types.Operator):
         if bpy.app.timers.is_registered(WM_OT_EstablishConnection.send_periodically):
             bpy.app.timers.unregister(WM_OT_EstablishConnection.send_periodically())
 
+        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.timed_msg_poller_for_student):
+            bpy.app.timers.unregister(WM_OT_EstablishConnection.timed_msg_poller_for_student())
+
         try:
             bpy.types.WindowManager.socket.close()
-            self.report({'INFO'}, 'Student socket closed')
+            self.report({'INFO'}, 'Student pub socket closed')
         except AttributeError:
-            self.report({'INFO'}, 'Student socket was not active')
+            self.report({'INFO'}, 'Student pub socket was not active')
+
+        try:
+            bpy.types.WindowManager.rep.close()
+            self.report({'INFO'}, 'Student rep socket closed')
+        except AttributeError:
+            self.report({'INFO'}, 'Student rep socket was not active')
 
 
+        bpy.types.WindowManager.socket = None
+        bpy.types.WindowManager.rep = None
         socket_settings = context.window_manager.socket_settings
         socket_settings.is_connected = False
 
@@ -283,6 +354,8 @@ class STUDENT_OT_send(bpy.types.Operator):
     def execute(self, context):
         scene = context.scene
         idx = scene.student_index
+        req = context.window_manager.req 
+        settings = context.window_manager.socket_settings
 
         try:
             student = scene.students[idx]
@@ -291,8 +364,22 @@ class STUDENT_OT_send(bpy.types.Operator):
             return {'CANCELLED'}
 
         # TODO: CODE FOR SENDING REQUEST TO STUDENT
+        req.connect(student.rep_socket)
+        req.send_string("SEND FILE")
+        self.report({'INFO'}, f"Request for file send to {student.name} binded to {student.rep_socket} and waiting for reply..")
 
-        self.report({'INFO'}, f"Request for file send to {student.name}")
+
+        # AWAITING REPLY
+        login, data = req.recv_multipart()
+        login = login.decode()
+
+        path = f"{settings.path}/{login}.blend" 
+        with open(path, 'wb') as file:
+            file.write(data)
+
+        self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{login}.blend")
+        
+
         return {'FINISHED'}
 
 
@@ -351,7 +438,10 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
         
         # OS independent (Windows: bin\python.exe; Linux: bin/python3.7m)
         py_path = Path(sys.prefix) / "bin"
-        py_exec = str(next(py_path.glob("python*")))  # first file that starts with "python" in "bin" dir
+        py_execs = list(py_path.glob("python3*"))
+        py_execs = [x for x in py_execs if 'config' not in str(x.resolve())]
+
+        py_exec = str(py_execs.pop(0))  # first file that starts with "python" in "bin" dir
         # TODO check permission rights
         if subprocess.call([py_exec, "-m", "ensurepip"]) != 0:
             install_props.install_status += "\nCouldn't activate pip."
@@ -365,12 +455,33 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
             return {'CANCELLED'}
         install_props.install_status += "\nPip updated! Installing pyzmq..."
         self.report({'INFO'}, "Pip updated! Installing pyzmq...")
+        
+        if subprocess.call([py_exec, "-m", "pip", "install", "wheel"]) != 0:
+            install_props.install_status += "\nCouldn't install wheel."
+            self.report({'ERROR'}, "Couldn't install wheel.")
+            return {'CANCELLED'}
+
+        install_props.install_status += "\npyzmq installed! READY!"
+        self.report({'INFO'}, "pyzmq installed! READY!")
 
         if subprocess.call([py_exec, "-m", "pip", "install", "pyzmq"]) != 0:
             install_props.install_status += "\nCouldn't install pyzmq."
             self.report({'ERROR'}, "Couldn't install pyzmq.")
             return {'CANCELLED'}
+
         install_props.install_status += "\npyzmq installed! READY!"
         self.report({'INFO'}, "pyzmq installed! READY!")
+
+        if subprocess.call([py_exec, "-m", "pip", "install", "ifcfg"]) != 0:
+            install_props.install_status += "\nCouldn't install ifcfg."
+            self.report({'ERROR'}, "Couldn't install ifcfg.")
+            return {'CANCELLED'}
+
+        install_props.install_status += "\nifcfg installed! READY!"
+        self.report({'INFO'}, "ifcfg installed! READY!")
+
+
+
+
 
         return {'FINISHED'}  # Lets Blender know the operator finished successfully

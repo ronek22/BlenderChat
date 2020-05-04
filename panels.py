@@ -19,10 +19,11 @@ import bpy
 
 class StudentObject(PropertyGroup):
     name: StringProperty()
-    rep_socket: StringProperty
+    rep_socket: StringProperty()
 
 
 class ChatProperties(PropertyGroup):
+
 
     port : IntProperty(
         name = "Port number",
@@ -106,18 +107,18 @@ class OBJECT_PT_CustomPanel(Panel):
 
         layout = self.layout
         mytool = context.window_manager.socket_settings
-        wm = context.window_manager
         scene = bpy.context.scene
-        
+
         try:
             import zmq
-
+            import ifcfg
 
             if not mytool.is_connected:
                 layout.prop(mytool, "connection_type", text="") 
                 layout.prop(mytool, "port")
 
                 if mytool.connection_type == 'Client':
+                    layout.prop(scene, "networks")
                     layout.prop(mytool, "login")
                 else:
                     layout.prop(mytool, 'path')
