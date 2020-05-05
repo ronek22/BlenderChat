@@ -23,9 +23,9 @@ bl_info = {
 }
 
 import bpy
-from bpy.props import EnumProperty, PointerProperty, CollectionProperty, IntProperty, StringProperty
+from bpy.props import EnumProperty, PointerProperty, CollectionProperty, IntProperty, StringProperty, BoolProperty
 from . operators import PIPZMQ_OT_pip_pyzmq, STUDENT_OT_actions, STUDENT_OT_send,WM_OT_EstablishConnection, WM_OT_SendScreen, WM_OT_SendFile, WM_OT_SendMessage, WM_OT_CloseConnection, WM_OT_CloseClient
-from . panels import STUDENT_UL_items,StudentObject, ChatProperties, OBJECT_PT_CustomPanel, PIPZMQProperties
+from . panels import STUDENT_UL_items,StudentObject, ChatProperties, OBJECT_PT_CustomPanel, PIPZMQProperties, enum_previews_from_directory_items
 from . helper import fill_network_enum
 
 classes = (
@@ -51,11 +51,12 @@ classes = (
 
 
 
-
 def register():
-    from bpy.utils import register_class
+    from bpy.utils import register_class, previews
     for cls in classes:
         register_class(cls)
+
+
 
     bpy.types.WindowManager.install_props = PointerProperty(type=PIPZMQProperties)
     bpy.types.WindowManager.socket_settings = PointerProperty(type=ChatProperties)
@@ -64,6 +65,20 @@ def register():
     bpy.types.Scene.student_index = IntProperty()
     bpy.types.Scene.networks = EnumProperty(name="Avail. networks", items = fill_network_enum())
     bpy.types.Scene.network_list = fill_network_enum()
+    bpy.types.WindowManager.reload_previews = BoolProperty(default=True)
+
+    bpy.types.WindowManager.my_previews = EnumProperty(
+            name="Student Previews",
+            items=enum_previews_from_directory_items,
+            )
+
+    # import bpy.utils.previews
+    pcoll = previews.new()
+    pcoll.my_previews_dir = ""
+    pcoll.my_previews = ()
+
+    bpy.types.WindowManager.preview_collections = {}
+    bpy.types.WindowManager.preview_collections["main"] = pcoll
 
 def unregister():
     from bpy.utils import unregister_class
@@ -75,7 +90,14 @@ def unregister():
     del bpy.types.Scene.students
     del bpy.types.WindowManager.socket_settings
     del bpy.types.WindowManager.install_props
+    del bpy.types.WindowManager.reload_previews
 
+    del bpy.types.WindowManager.my_previews
+
+
+    for pcoll in bpy.types.WindowManager.preview_collections.values():
+        bpy.utils.previews.remove(pcoll)
+    bpy.types.WindowManager.preview_collections.clear()
 
 
 if __name__ == "__main__":

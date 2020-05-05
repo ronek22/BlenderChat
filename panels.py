@@ -13,6 +13,7 @@ from bpy.types import (Panel,
                        UIList
                        )
 import bpy
+import os
 # ------------------------------------------------------------------------
 #    Scene Properties
 # ------------------------------------------------------------------------
@@ -84,6 +85,51 @@ class STUDENT_UL_items(UIList):
         pass  
 
 
+def enum_previews_from_directory_items(self, context):
+    """EnumProperty callback"""
+    enum_items = []
+
+    if context is None:
+        return enum_items
+
+    wm = context.window_manager
+    directory = wm.socket_settings.path
+    reload = wm.reload_previews
+
+    # Get the preview collection (defined in register func).
+    pcoll = wm.preview_collections["main"]
+
+    if not reload:
+        return pcoll.my_previews
+
+    pcoll.clear()
+
+    print("Scanning directory: %s" % directory)
+    print([(k,v.icon_id) for k, v in pcoll.items()])
+    def_dir = os.path.dirname(bpy.data.filepath) + directory[:]
+    if directory and os.path.exists(def_dir):
+        # Scan the directory for png files
+        image_paths = []
+        for fn in os.listdir(def_dir):
+            if fn.lower().endswith(".png"):
+                image_paths.append(fn)
+
+        print(image_paths)
+        for i, name in enumerate(image_paths):
+            # generates a thumbnail preview for a file.
+            filepath = os.path.join(def_dir, name)
+            if filepath not in [k for k, v in pcoll.items()]:
+                thumb = pcoll.load(filepath, filepath, 'IMAGE', force_reload=True)
+                enum_items.append((name, name, "", thumb.icon_id, i))
+                print(f'Added thumbnail: {filepath}')
+
+
+    pcoll.my_previews = enum_items
+    pcoll.my_previews_dir = directory
+    wm.reload_previews = False
+    return pcoll.my_previews
+
+
 class OBJECT_PT_CustomPanel(Panel):
     bl_label = "Chat Panel"
     bl_idname = "OBJECT_PT_custom_panel"
@@ -108,6 +154,7 @@ class OBJECT_PT_CustomPanel(Panel):
         layout = self.layout
         mytool = context.window_manager.socket_settings
         scene = bpy.context.scene
+        wm = context.window_manager
 
         try:
             import zmq
@@ -133,15 +180,14 @@ class OBJECT_PT_CustomPanel(Panel):
                     layout.operator("wm.close_client")
 
                 
-                    # Image preview
-                    # tex = bpy.data.textures[0]
-                    # col = layout.box().column()
-                    # col.template_preview(tex)
                 else:
                     for _, network, _ in scene.network_list:
                         layout.label(text=network)
                     layout.prop(mytool, "login")
                     layout.prop(mytool, "message")
+
+                    layout.label(text="Students list")
+
 
                     rows = 2
                     row = layout.row()
@@ -151,10 +197,20 @@ class OBJECT_PT_CustomPanel(Panel):
                     col.operator("student.list_action", icon="ZOOM_IN", text="").action = "ADD"
                     col.operator("student.list_action", icon="ZOOM_OUT", text="").action = "REMOVE"
 
+
                     row = layout.row()
                     col = row.column(align=True)
                     row = col.row(align=True)
                     row.operator('student.send', icon="LINENUMBERS_ON")
+
+                    layout.label(text="Students previews")
+
+
+                    row = layout.row()
+                    row.template_icon_view(wm, "my_previews", show_labels=True,scale=10.0, scale_popup=8.0)
+
+                    row = layout.row()
+                    row.prop(wm, "my_previews")
 
                     layout.operator("wm.close_server")
         except ImportError:
