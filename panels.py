@@ -111,7 +111,6 @@ class OBJECT_PT_CustomPanel(Panel):
 
         try:
             import zmq
-            import ifcfg
 
             if not mytool.is_connected:
                 layout.prop(mytool, "connection_type", text="") 
@@ -139,8 +138,8 @@ class OBJECT_PT_CustomPanel(Panel):
                     # col = layout.box().column()
                     # col.template_preview(tex)
                 else:
-
-                    # layout.prop(mytool, "is_connected")
+                    for _, network, _ in scene.network_list:
+                        layout.label(text=network)
                     layout.prop(mytool, "login")
                     layout.prop(mytool, "message")
 

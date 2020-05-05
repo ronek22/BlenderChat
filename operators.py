@@ -306,7 +306,9 @@ class WM_OT_CloseClient(bpy.types.Operator):
 
         return {'FINISHED'}
 
-
+# =====================================================================
+# ===== OPERATORS IN LECTURER SOCKETS, OPERATION OF STUDENTS LIST =====
+# =====================================================================
 class STUDENT_OT_actions(bpy.types.Operator):
     bl_idname = "student.list_action"
     bl_label = "List Actions"
@@ -352,6 +354,7 @@ class STUDENT_OT_send(bpy.types.Operator):
         return bool(context.scene.students)
 
     def execute(self, context):
+        import subprocess
         scene = context.scene
         idx = scene.student_index
         req = context.window_manager.req 
@@ -363,11 +366,9 @@ class STUDENT_OT_send(bpy.types.Operator):
             self.report({'INFO'}, "Nothing selected in the list")
             return {'CANCELLED'}
 
-        # TODO: CODE FOR SENDING REQUEST TO STUDENT
         req.connect(student.rep_socket)
         req.send_string("SEND FILE")
         self.report({'INFO'}, f"Request for file send to {student.name} binded to {student.rep_socket} and waiting for reply..")
-
 
         # AWAITING REPLY
         login, data = req.recv_multipart()
@@ -378,6 +379,14 @@ class STUDENT_OT_send(bpy.types.Operator):
             file.write(data)
 
         self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{login}.blend")
+
+
+        # bpy.ops.wm.open_mainfile(filepath=path)
+        # TODO: Make this crossplatform 
+        # TODO: To addon settings add path to blender
+        subprocess.Popen(['blender', path])
+
+        self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
         
 
         return {'FINISHED'}
