@@ -63,7 +63,7 @@ def register():
     # VALUES INITALIZE ONLY ONCE
     bpy.types.Scene.students = CollectionProperty(type=StudentObject)
     bpy.types.Scene.student_index = IntProperty()
-    bpy.types.Scene.networks = EnumProperty(name="Avail. networks", items = fill_network_enum())
+    bpy.types.Scene.networks = EnumProperty(name="Reply socket", items=fill_network_enum())
     bpy.types.Scene.network_list = fill_network_enum()
     bpy.types.WindowManager.reload_previews = BoolProperty(default=True)
 

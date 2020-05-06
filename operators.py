@@ -35,7 +35,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             self.report({'INFO'}, "Connecting ZeroMQ socket...")
             # Creating a ZeroMQ context
             self.zmq_ctx = zmq.Context().instance()
-            self.url = f"tcp://{'127.0.0.1'}:{self.socket_settings.port}"
+            self.url = f"tcp://{'*'}:{self.socket_settings.port}"
             # store our connection in Blender's WindowManager for access in self.timed_msg_poller()
             bpy.types.WindowManager.socket = self.zmq_ctx.socket(zmq.SUB)
             bpy.types.WindowManager.socket.bind(self.url)  # publisher connects to this (subscriber)
@@ -108,7 +108,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             self.report({'INFO'}, 'Connecting to Lecturer...')
             self.zmq_ctx = zmq.Context().instance()
             # TODO: CONNECT TO GIVEN URL BY LECTURER
-            self.url = f"tcp://{'127.0.0.1'}:{self.socket_settings.port}"
+            self.url = f"tcp://{self.socket_settings.ip}:{self.socket_settings.port}"
             
             bpy.types.WindowManager.socket = self.zmq_ctx.socket(zmq.PUB)
             bpy.types.WindowManager.socket.connect(self.url)
@@ -121,7 +121,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             rep_address = f"tcp://{context.scene.networks}"
             print(f"REP-ADDRESS: {rep_address}")
             bpy.types.WindowManager.rep = self.zmq_ctx.socket(zmq.REP)
-            rep_port = bpy.types.WindowManager.rep.bind_to_random_port(rep_address)
+            rep_port = bpy.types.WindowManager.rep.bind_to_random_port('tcp://*')
             bpy.types.WindowManager.rep_address = f"{rep_address}:{rep_port}"
 
             # NON-BLOCKING BEHAVIOR OF REP SERVER GUARANTEED BY POLLER
@@ -408,6 +408,10 @@ class STUDENT_OT_send(bpy.types.Operator):
         subprocess.Popen(['blender', path])
 
         self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
+
+        context.window_manager.req.disconnect(student.rep_socket)
+
+        
         
 
         return {'FINISHED'}

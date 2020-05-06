@@ -34,6 +34,13 @@ class ChatProperties(PropertyGroup):
         max = 65535
         )
 
+    # TODO: ADD VALIDATION
+    ip : StringProperty(
+        name = "Lecturer IP",
+        description = "IP address of lecturer",
+        default="127.0.0.1"
+    )
+
     login : StringProperty(
         name="User Name",
         description="Provide your username",
@@ -166,6 +173,7 @@ class OBJECT_PT_CustomPanel(Panel):
 
                 if mytool.connection_type == 'Client':
                     layout.prop(scene, "networks")
+                    layout.prop(mytool, "ip")
                     layout.prop(mytool, "login")
                 else:
                     layout.prop(mytool, 'path')
