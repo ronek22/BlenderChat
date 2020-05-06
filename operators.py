@@ -90,7 +90,7 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                     path = f"{self.socket_settings.path}/{user}.png"
                     with open(path,'wb') as file:
                         file.write(msg)
-                    context.windows_manager.reload_previews = True
+                    context.window_manager.reload_previews = True
                 elif mode == 'msg':
                     msg = self.socket_settings.message = msg.decode('utf-8')
                     print(f"{user} > {msg}")
@@ -254,6 +254,20 @@ class WM_OT_CloseConnection(bpy.types.Operator):
     bl_idname = "wm.close_server"
     bl_label = "Close connection"
 
+    def clear_student_list(self, context):
+        scn = context.scene
+        lst = scn.students
+
+        if len(lst) > 0:
+            # remove last item first
+            for i in range(len(lst)-1,-1,-1):
+                scn.students.remove(i)
+            self.report({'INFO'}, 'All students remove')
+        else:
+            self.report({'INFO'}, 'Nothing to remove')
+
+        
+
     def execute(self, context):
         socket_settings = context.window_manager.socket_settings
         if bpy.app.timers.is_registered(WM_OT_EstablishConnection.timed_msg_poller_for_lecturer):
@@ -274,6 +288,9 @@ class WM_OT_CloseConnection(bpy.types.Operator):
 
         bpy.types.WindowManager.req = None
         bpy.types.WindowManager.socket = None
+        context.window_manager.reload_previews = True
+        # bpy.types.WindowManager.reload_previews = True
+        self.clear_student_list(context)
         socket_settings.is_connected = False
 
         return {'FINISHED'}
