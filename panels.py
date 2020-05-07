@@ -14,12 +14,14 @@ from bpy.types import (Panel,
                        )
 import bpy
 import os
+from uuid import uuid4
 # ------------------------------------------------------------------------
 #    Scene Properties
 # ------------------------------------------------------------------------
 
 class StudentObject(PropertyGroup):
     name: StringProperty()
+    uid: StringProperty()
     rep_socket: StringProperty()
 
 
@@ -47,6 +49,11 @@ class ChatProperties(PropertyGroup):
         default="",
         maxlen=50
         )
+
+    uid : StringProperty(
+        name="UID",
+        default=str(uuid4())
+    )
 
     connection_type : EnumProperty(
         name="Type of user:",
@@ -99,9 +106,11 @@ def enum_previews_from_directory_items(self, context):
     if context is None:
         return enum_items
 
+    students = [s.name for s in context.scene.students]
     wm = context.window_manager
     directory = wm.socket_settings.path
     reload = wm.reload_previews
+
 
     # Get the preview collection (defined in register func).
     pcoll = wm.preview_collections["main"]
@@ -119,7 +128,8 @@ def enum_previews_from_directory_items(self, context):
         image_paths = []
         for fn in os.listdir(def_dir):
             if fn.lower().endswith(".png"):
-                image_paths.append(fn)
+                if fn[:-4] in students:
+                    image_paths.append(fn)
 
         print(image_paths)
         for i, name in enumerate(image_paths):
@@ -175,6 +185,7 @@ class OBJECT_PT_CustomPanel(Panel):
                     layout.prop(scene, "networks")
                     layout.prop(mytool, "ip")
                     layout.prop(mytool, "login")
+                    layout.prop(mytool, "uid")
                 else:
                     layout.prop(mytool, 'path')
 
@@ -203,7 +214,6 @@ class OBJECT_PT_CustomPanel(Panel):
                     row.template_list("STUDENT_UL_items", "", scene, "students", scene, "student_index", rows=rows)
 
                     col = row.column(align=True)
-                    col.operator("student.list_action", icon="ZOOM_IN", text="").action = "ADD"
                     col.operator("student.list_action", icon="ZOOM_OUT", text="").action = "REMOVE"
 
 
