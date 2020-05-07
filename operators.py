@@ -517,12 +517,21 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
         install_props = context.window_manager.install_props
         install_props.install_status = "Preparing to enable pip..."
 
-        from platform import system
         import subprocess  # use Python executable (for pip usage)
+        import os
+        
+        # from platform import system
+        # if system() != 'Windows':
+        #     import ensurepip
+        #     ensurepip.bootstrap()
 
-        if system() != 'Windows':
+        try:
+            import pip
+        except ModuleNotFoundError as e:
+            install_props.install_status += f"\nPip import failed. {e}"
             import ensurepip
             ensurepip.bootstrap()
+            os.environ.pop("PIP_REQ_TRACKER", None) # https://developer.blender.org/T71856
 
         # WORKS ONLY FROM 2.81
         # Pip is now enabled by default from 2.81, so no need for this solution anymore: https://developer.blender.org/T71856
