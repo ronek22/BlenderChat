@@ -67,6 +67,8 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             scene.student_index = len(scene.students)-1
 
         self.socket_settings.login = user
+        # if student reconnects, probably get new rep_socket 
+        student.rep_socket = rep_socket.decode()
 
         return student
 
@@ -397,11 +399,7 @@ class STUDENT_OT_send(bpy.types.Operator):
             file.write(data)
 
         self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{student.name}.blend")
-        # bpy.ops.wm.open_mainfile(filepath=path)
-        # TODO: Make this crossplatform 
-        # TODO: To addon settings add path to blender
-        subprocess.Popen(['blender', path])
-
+        subprocess.Popen([bpy.app.binary_path, path])
         self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
         
 
