@@ -517,11 +517,28 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
         install_props = context.window_manager.install_props
         install_props.install_status = "Preparing to enable pip..."
 
-        import sys
+        from platform import system
         import subprocess  # use Python executable (for pip usage)
-        from pathlib import Path
-        
+
+        if system() != 'Windows':
+            import ensurepip
+            ensurepip.bootstrap()
+
+        # WORKS ONLY FROM 2.81
+        # Pip is now enabled by default from 2.81, so no need for this solution anymore: https://developer.blender.org/T71856
+        # ensurepip.bootstrap()
+        pybin = bpy.app.binary_path_python
+        if subprocess.call([pybin, '-m', 'pip', 'install', 'pyzmq']) != 0:
+            install_props.install_status += "\nCouldn't install pyzmq."
+            self.report({'ERROR'}, "Couldn't install pyzmq.")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, "pyzmq installed! READY!")
+
+        #region BLENDER < 2.81
+        # FOR BLENDER VERSIONS < 2.81
         # OS independent (Windows: bin\python.exe; Linux: bin/python3.7m)
+        """
         py_path = Path(sys.prefix) / "bin"
         py_execs = list(py_path.glob("python3*"))
         py_execs = [x for x in py_execs if 'config' not in str(x.resolve())]
@@ -556,9 +573,7 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
 
         install_props.install_status += "\npyzmq installed! READY!"
         self.report({'INFO'}, "pyzmq installed! READY!")
-
-
-
-
+        """
+        #endregion
 
         return {'FINISHED'}  # Lets Blender know the operator finished successfully
