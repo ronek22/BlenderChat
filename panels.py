@@ -99,9 +99,12 @@ def enum_previews_from_directory_items(self, context):
     if context is None:
         return enum_items
 
+    students = [s.name for s in context.scene.students]
     wm = context.window_manager
     directory = wm.socket_settings.path
     reload = wm.reload_previews
+
+    print(f"STUDENTS: {students}")
 
     # Get the preview collection (defined in register func).
     pcoll = wm.preview_collections["main"]
@@ -119,7 +122,8 @@ def enum_previews_from_directory_items(self, context):
         image_paths = []
         for fn in os.listdir(def_dir):
             if fn.lower().endswith(".png"):
-                image_paths.append(fn)
+                if fn[:-4] in students:
+                    image_paths.append(fn)
 
         print(image_paths)
         for i, name in enumerate(image_paths):

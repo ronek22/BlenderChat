@@ -422,6 +422,7 @@ class STUDENT_OT_send(bpy.types.Operator):
                         self.report({'ERROR'}, 'Student seems to be offline, abandonig')
                         context.scene.student_index -= 1
                         context.scene.students.remove(idx)
+                        context.window_manager.reload_previews = True
                         break
                     self.report({'INFO'}, 'Reconnecting and resending')
                     req = zmq.Context().instance().socket(zmq.REQ)
