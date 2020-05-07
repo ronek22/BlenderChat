@@ -203,7 +203,6 @@ class OBJECT_PT_CustomPanel(Panel):
                     row.template_list("STUDENT_UL_items", "", scene, "students", scene, "student_index", rows=rows)
 
                     col = row.column(align=True)
-                    col.operator("student.list_action", icon="ZOOM_IN", text="").action = "ADD"
                     col.operator("student.list_action", icon="ZOOM_OUT", text="").action = "REMOVE"
 
 

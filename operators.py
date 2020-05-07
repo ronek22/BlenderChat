@@ -336,7 +336,7 @@ class STUDENT_OT_actions(bpy.types.Operator):
     bl_description = "Managing list of students"
     bl_options = {'REGISTER'}
 
-    action: bpy.props.EnumProperty(items=(('ADD', "Add", ""),('REMOVE', "Remove", ""),))
+    action: bpy.props.EnumProperty(items=(('REMOVE', "Remove", ""),))
 
     def invoke(self, context, event):
 
@@ -352,16 +352,8 @@ class STUDENT_OT_actions(bpy.types.Operator):
             if self.action == "REMOVE":
                 scene.student_index -= 1
                 scene.students.remove(idx)
-                self.report({'INFO'}, f"Item {student.name} remove")
-        if self.action == "ADD":
-            if context.object:
-                student = scene.students.add()
-                student.name = 'Alvaro' # TODO: CANT BE CONSTANT
-                student.id = len(scene.students)
-                scene.student_index = len(scene.students)-1
-                self.report({'INFO'}, f"{scene.name} added to list")
-            else:
-                self.report({'INFO'}, 'Nothing selected in the Viewport')
+                # TODO: ACTION FOR BAN USER, REQUEST SEND AND CLOSE CLIENT SOCKET
+                self.report({'INFO'}, f"Item {student.name} removed")
         return {"FINISHED"}
 
 class STUDENT_OT_send(bpy.types.Operator):
@@ -369,17 +361,79 @@ class STUDENT_OT_send(bpy.types.Operator):
     bl_label = "Send request"
     bl_description = "Use it for load student .blend file"
     bl_options = {'REGISTER', 'UNDO'}
+    request_timeout = 1000
+    request_retries = 3
 
     @classmethod
     def poll(cls, context):
         return bool(context.scene.students)
 
-    def execute(self, context):
+    def open_file(self, context):
+        pass
+
+
+    def send_request_for_file(self, context, student, idx):
+        '''Lazy Pirate Pattern'''
         import subprocess
+        settings = context.window_manager.socket_settings
+
+        req = zmq.Context().instance().socket(zmq.REQ)
+        req.connect(student.rep_socket)
+
+        poll = zmq.Poller()
+        poll.register(req, zmq.POLLIN)
+
+        retries_left = self.request_retries
+        while retries_left:
+            self.report({'INFO'}, f"Request for file sending to {student.name} binded to {student.rep_socket} and waiting for reply..")
+            req.send_string("SEND FILE")
+            expect_reply = True
+            while expect_reply:
+                socks = dict(poll.poll(self.request_timeout))
+                if socks.get(req) == zmq.POLLIN:
+                    login, data = req.recv_multipart()
+                    if (not login) or (not data):
+                        break
+                    # correct reply
+                    login = login.decode()
+
+                    path = f"{settings.path}/{login}.blend" 
+                    with open(path, 'wb') as file:
+                        file.write(data)
+
+                    self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{login}.blend")
+                    # bpy.ops.wm.open_mainfile(filepath=path)
+                    # TODO: Make this crossplatform 
+                    # TODO: To addon settings add path to blender
+                    subprocess.Popen(['blender', path])
+
+                    self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
+
+                    req.disconnect(student.rep_socket)
+                    expect_reply = False
+                    retries_left = 0
+                else:
+                    self.report({'WARNING'}, 'No response from student, retrying...')
+                    req.setsockopt(zmq.LINGER, 0)
+                    req.close()
+                    poll.unregister(req)
+                    retries_left-=1
+                    if retries_left == 0:
+                        self.report({'ERROR'}, 'Student seems to be offline, abandonig')
+                        context.scene.student_index -= 1
+                        context.scene.students.remove(idx)
+                        break
+                    self.report({'INFO'}, 'Reconnecting and resending')
+                    req = zmq.Context().instance().socket(zmq.REQ)
+                    req.connect(student.rep_socket)
+                    poll.register(req, zmq.POLLIN)
+                    req.send_string('SEND FILE')
+
+
+
+    def execute(self, context):
         scene = context.scene
         idx = scene.student_index
-        req = context.window_manager.req 
-        settings = context.window_manager.socket_settings
 
         try:
             student = scene.students[idx]
@@ -387,33 +441,8 @@ class STUDENT_OT_send(bpy.types.Operator):
             self.report({'INFO'}, "Nothing selected in the list")
             return {'CANCELLED'}
 
-        req.connect(student.rep_socket)
-        req.send_string("SEND FILE")
-        self.report({'INFO'}, f"Request for file send to {student.name} binded to {student.rep_socket} and waiting for reply..")
-
-        # AWAITING REPLY
-        login, data = req.recv_multipart()
-        login = login.decode()
-
-        path = f"{settings.path}/{login}.blend" 
-        with open(path, 'wb') as file:
-            file.write(data)
-
-        self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{login}.blend")
-
-
-        # bpy.ops.wm.open_mainfile(filepath=path)
-        # TODO: Make this crossplatform 
-        # TODO: To addon settings add path to blender
-        subprocess.Popen(['blender', path])
-
-        self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
-
-        context.window_manager.req.disconnect(student.rep_socket)
-
+        self.send_request_for_file(context, student, idx)
         
-        
-
         return {'FINISHED'}
 
 
