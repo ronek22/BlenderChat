@@ -14,12 +14,14 @@ from bpy.types import (Panel,
                        )
 import bpy
 import os
+from uuid import uuid4
 # ------------------------------------------------------------------------
 #    Scene Properties
 # ------------------------------------------------------------------------
 
 class StudentObject(PropertyGroup):
     name: StringProperty()
+    uid: StringProperty()
     rep_socket: StringProperty()
 
 
@@ -47,6 +49,11 @@ class ChatProperties(PropertyGroup):
         default="",
         maxlen=50
         )
+
+    uid : StringProperty(
+        name="UID",
+        default=str(uuid4())
+    )
 
     connection_type : EnumProperty(
         name="Type of user:",
@@ -104,7 +111,6 @@ def enum_previews_from_directory_items(self, context):
     directory = wm.socket_settings.path
     reload = wm.reload_previews
 
-    print(f"STUDENTS: {students}")
 
     # Get the preview collection (defined in register func).
     pcoll = wm.preview_collections["main"]
@@ -179,6 +185,7 @@ class OBJECT_PT_CustomPanel(Panel):
                     layout.prop(scene, "networks")
                     layout.prop(mytool, "ip")
                     layout.prop(mytool, "login")
+                    layout.prop(mytool, "uid")
                 else:
                     layout.prop(mytool, 'path')
 

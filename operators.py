@@ -53,16 +53,23 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             bpy.app.timers.register(functools.partial(self.timed_msg_poller_for_lecturer, context))
         return {'FINISHED'}
 
-    def handle_student_list(self, scene, user, rep_socket):
-        if user not in [x.name for x in scene.students]:
+    def handle_student_list(self, scene, user, uid, rep_socket):
+        student = next((student for student in scene.students if student.uid == uid), None)
+        if not student:
+            duplicate_user = sum(s.name == user for s in scene.students)
+            if duplicate_user > 0:
+                user += f'_{duplicate_user}' 
             student = scene.students.add()
             student.name = user
             student.rep_socket = rep_socket.decode()
             student.id = len(scene.students)
+            student.uid = uid
             scene.student_index = len(scene.students)-1
 
-        students = [(x.name, x.rep_socket) for x in scene.students]
-        pprint(students)
+        self.socket_settings.login = user
+
+        return student
+
 
     def timed_msg_poller_for_lecturer(self, context):
 
@@ -74,29 +81,30 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             sockets = dict(self.poller.poll(0))
             
             if socket in sockets:
-                mode, rep_socket, user, msg = socket.recv_multipart()
+                mode, rep_socket, user, uid, msg = socket.recv_multipart()
                 user = self.socket_settings.login = user.decode('ascii')
+                uid = uid.decode()
                 mode = mode.decode()
 
                 # TODO: check if recv_multipart has 4 parts if yes handle students otherwise not
 
-                self.handle_student_list(context.scene, user, rep_socket)
+                student = self.handle_student_list(context.scene, user, uid, rep_socket)
 
                 if mode == 'file':
-                    path = f"{self.socket_settings.path}/{user}.blend" 
+                    path = f"{self.socket_settings.path}/{student.name}.blend" 
                     with open(path, 'wb') as file:
                         file.write(msg)
                 elif mode == 'img':
-                    path = f"{self.socket_settings.path}/{user}.png"
+                    path = f"{self.socket_settings.path}/{student.name}.png"
                     with open(path,'wb') as file:
                         file.write(msg)
                     context.window_manager.reload_previews = True
                 elif mode == 'msg':
                     msg = self.socket_settings.message = msg.decode('utf-8')
-                    print(f"{user} > {msg}")
+                    print(f"{student.name} > {msg}")
                 elif mode == 'intro':
                     msg = self.socket_settings.message = msg.decode('utf-8')
-                    print(f"REPLY SOCKET FOR {user}: {rep_socket.decode('utf-8')}")
+                    print(f"REPLY SOCKET FOR {student.name}: {rep_socket.decode('utf-8')}")
 
                 # How to report from timer?         
             return 0.001
@@ -133,9 +141,10 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             data = context.window_manager.socket_settings
             rep_socket = bpy.types.WindowManager.rep_address.encode()
             login =  data.login.encode('ascii')
+            uid = data.uid.encode('utf-8')
             msg = bytes("Dzień Dobry!", 'utf-8')
-            print(f"{rep_socket.decode()} | {login.decode('ascii')} | {msg.decode()}")
-            bpy.types.WindowManager.socket.send_multipart([b'intro', rep_socket, login, msg])
+            print(f"{rep_socket.decode()} | {login.decode('ascii')} | {uid.decode()} | {msg.decode()}")
+            bpy.types.WindowManager.socket.send_multipart([b'intro', rep_socket, login, uid, msg])
             data.message = ""
 
             self.socket_settings.is_connected = True
@@ -143,19 +152,15 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
             # bpy.app.timers.register(functools.partial(self.timed_msg_poller_for_student, context))
             bpy.app.timers.register(self.timed_msg_poller_for_student)
 
-
-            # test of periodically send default message
-            # bpy.app.timers.register(self.send_periodically)
+            # test of periodically send screen
+            bpy.app.timers.register(self.send_screens_periodically)
 
         return {'FINISHED'}
 
     def timed_msg_poller_for_student(self):
-
         socket = bpy.types.WindowManager.rep
-
         if socket:
             sockets = dict(self.poller.poll(0))
-            
             if socket in sockets:
                 msg = socket.recv_string()
 
@@ -163,26 +168,32 @@ class WM_OT_EstablishConnection(bpy.types.Operator):
                     path = '/tmp/current.blend'
                     bpy.ops.wm.save_as_mainfile(filepath=path, check_existing=False)
                     
-                    data = self.socket_settings
-                    login =  data.login.encode('ascii')
-                    
                     with open(path, 'rb') as file:
                         data = file.read()
-                    socket.send_multipart([login, data])
+                    socket.send(data)
 
                 
                 # How to report from timer?         
             return 0.001
 
-    def send_periodically(self):
+    def send_screens_periodically(self):
         socket = bpy.types.WindowManager.socket
 
         if socket:
-            login = self.socket_settings.login.encode('ascii')
-            socket.send_multipart([b'msg', login, b'Testing periodically'])
+            # send every minute
+            login =  self.socket_settings.login.encode('ascii')
+            uid = self.socket_settings.uid.encode('utf-8')
+            rep_socket = bpy.types.WindowManager.rep_address.encode('utf-8')
 
-        # send every second
-        return 1
+            screenshot("screen.png")
+            
+            with open("/tmp/screen.png", 'rb') as file:
+                data = file.read()
+
+            socket.send_multipart([b'img', rep_socket, login, uid, data])
+        # self.report({'INFO'}, 'Screen sent succesfully')
+
+        return 60
     # endregion
 
 
@@ -194,10 +205,11 @@ class WM_OT_SendMessage(bpy.types.Operator):
         data = context.window_manager.socket_settings
         rep_socket = context.window_manager.rep_address.encode('utf-8')
         login =  data.login.encode('ascii')
+        uid = data.uid.encode('utf-8')
         msg = data.message.encode('utf-8')
         socket_pub = bpy.types.WindowManager.socket
 
-        socket_pub.send_multipart([b'msg', rep_socket, login, msg])
+        socket_pub.send_multipart([b'msg', rep_socket, login, uid, msg])
         data.message = ""
         self.report({'INFO'}, f"Message: {msg.decode('utf-8')} sent")
 
@@ -218,11 +230,12 @@ class WM_OT_SendFile(bpy.types.Operator):
         
         data = context.window_manager.socket_settings
         login =  data.login.encode('ascii')
+        uid = data.uid.encode('utf-8')
         
 
         with open(path, 'rb') as file:
             data = file.read()
-        socket.send_multipart([b'file',rep_socket, login, data])
+        socket.send_multipart([b'file',rep_socket, login, uid, data])
         self.report({'INFO'}, 'Blend file sent succesfully')
 
         return {'FINISHED'}
@@ -234,6 +247,7 @@ class WM_OT_SendScreen(bpy.types.Operator):
     def execute(self, context):
         data = context.window_manager.socket_settings
         login =  data.login.encode('ascii')
+        uid = data.uid.encode('utf-8')
         socket = bpy.types.WindowManager.socket
         rep_socket = context.window_manager.rep_address.encode('utf-8')
 
@@ -242,7 +256,7 @@ class WM_OT_SendScreen(bpy.types.Operator):
         with open("/tmp/screen.png", 'rb') as file:
             data = file.read()
 
-        socket.send_multipart([b'img', rep_socket, login, data])
+        socket.send_multipart([b'img', rep_socket, login, uid, data])
         # self.report({'INFO'}, 'Screen sent succesfully')
 
 
@@ -292,6 +306,8 @@ class WM_OT_CloseConnection(bpy.types.Operator):
         # bpy.types.WindowManager.reload_previews = True
         self.clear_student_list(context)
         socket_settings.is_connected = False
+        socket_settings.login = ''
+        socket_settings.message = ''
 
         return {'FINISHED'}
 
@@ -301,8 +317,8 @@ class WM_OT_CloseClient(bpy.types.Operator):
 
     def execute(self, context):
 
-        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.send_periodically):
-            bpy.app.timers.unregister(WM_OT_EstablishConnection.send_periodically())
+        if bpy.app.timers.is_registered(WM_OT_EstablishConnection.send_screens_periodically):
+            bpy.app.timers.unregister(WM_OT_EstablishConnection.send_screens_periodically())
 
         if bpy.app.timers.is_registered(WM_OT_EstablishConnection.timed_msg_poller_for_student):
             bpy.app.timers.unregister(WM_OT_EstablishConnection.timed_msg_poller_for_student())
@@ -368,14 +384,32 @@ class STUDENT_OT_send(bpy.types.Operator):
     def poll(cls, context):
         return bool(context.scene.students)
 
-    def open_file(self, context):
-        pass
+    def open_file(self, context, student, data):
+        import subprocess
+
+        settings = context.window_manager.socket_settings
+
+        if not data:
+            return {'CANCELLED'}
+
+        path = f"{settings.path}/{student.name}.blend" 
+        with open(path, 'wb') as file:
+            file.write(data)
+
+        self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{student.name}.blend")
+        # bpy.ops.wm.open_mainfile(filepath=path)
+        # TODO: Make this crossplatform 
+        # TODO: To addon settings add path to blender
+        subprocess.Popen(['blender', path])
+
+        self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
+        
+
+        return {'FINISHED'}
 
 
     def send_request_for_file(self, context, student, idx):
         '''Lazy Pirate Pattern'''
-        import subprocess
-        settings = context.window_manager.socket_settings
 
         req = zmq.Context().instance().socket(zmq.REQ)
         req.connect(student.rep_socket)
@@ -391,24 +425,10 @@ class STUDENT_OT_send(bpy.types.Operator):
             while expect_reply:
                 socks = dict(poll.poll(self.request_timeout))
                 if socks.get(req) == zmq.POLLIN:
-                    login, data = req.recv_multipart()
-                    if (not login) or (not data):
+                    data = req.recv()
+                    if self.open_file(context, student, data) == {'CANCELLED'}:
                         break
-                    # correct reply
-                    login = login.decode()
-
-                    path = f"{settings.path}/{login}.blend" 
-                    with open(path, 'wb') as file:
-                        file.write(data)
-
-                    self.report({'INFO'}, f"File for {student.name} save into: {settings.path}/{login}.blend")
-                    # bpy.ops.wm.open_mainfile(filepath=path)
-                    # TODO: Make this crossplatform 
-                    # TODO: To addon settings add path to blender
-                    subprocess.Popen(['blender', path])
-
-                    self.report({'INFO'}, f"Opened {student.name} project into exisiting instance of blender")
-
+                    # Succesful reply disconnect socket
                     req.disconnect(student.rep_socket)
                     expect_reply = False
                     retries_left = 0
@@ -536,14 +556,6 @@ class PIPZMQ_OT_pip_pyzmq(bpy.types.Operator):
 
         install_props.install_status += "\npyzmq installed! READY!"
         self.report({'INFO'}, "pyzmq installed! READY!")
-
-        if subprocess.call([py_exec, "-m", "pip", "install", "ifcfg"]) != 0:
-            install_props.install_status += "\nCouldn't install ifcfg."
-            self.report({'ERROR'}, "Couldn't install ifcfg.")
-            return {'CANCELLED'}
-
-        install_props.install_status += "\nifcfg installed! READY!"
-        self.report({'INFO'}, "ifcfg installed! READY!")
 
 
 
