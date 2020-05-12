@@ -12,11 +12,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name" : "ChatAddon",
+    "name" : "LectureConnector",
     "author" : "Jakub Ronkiewicz",
     "description" : "",
     "blender" : (2, 80, 0),
-    "version" : (0, 0, 1),
+    "version" : (0, 9, 0),
     "location" : "3D View > Tools",
     "warning" : "", # used for warning icon and text in addons panel
     "category" : "Development"

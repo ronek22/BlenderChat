@@ -148,9 +148,9 @@ def enum_previews_from_directory_items(self, context):
 
 
 class OBJECT_PT_CustomPanel(Panel):
-    bl_label = "Chat Panel"
+    bl_label = "Lecture Connector"
     bl_idname = "OBJECT_PT_custom_panel"
-    bl_category = "Chat"
+    bl_category = "Lecture"
 
     bl_space_type = "VIEW_3D"   
     bl_region_type = "UI"
