@@ -154,17 +154,13 @@ class OBJECT_PT_CustomPanel(Panel):
 
     bl_space_type = "VIEW_3D"   
     bl_region_type = "UI"
-    # bl_context = "objectmode" 
-    # bl_context = "scene"
 
+
+    # Crash when making screenshot
     # bl_space_type = "PROPERTIES"   
     # bl_region_type = "WINDOW"
-    # bl_context = "scene" 
+    # bl_context = "render" 
 
-
-    @classmethod
-    def poll(cls,context):
-        return context.object is not None
 
     def draw(self, context):
 
@@ -185,18 +181,18 @@ class OBJECT_PT_CustomPanel(Panel):
                     layout.prop(scene, "networks")
                     layout.prop(mytool, "ip")
                     layout.prop(mytool, "login")
-                    layout.prop(mytool, "uid")
+                    # layout.prop(mytool, "uid")
                 else:
                     layout.prop(mytool, 'path')
 
                 layout.operator("wm.establish_connection")
-            else:
+            else: # CONNECTED
                 if mytool.connection_type == 'Client':
                     layout.prop(mytool, "message")
                     row = layout.row()
                     row.operator("wm.send_message")
-                    row.operator("wm.send_file")
-                    row.operator("wm.send_screen")
+                    # row.operator("wm.send_file")
+                    # row.operator("wm.send_screen")
                     layout.operator("wm.close_client")
 
                 

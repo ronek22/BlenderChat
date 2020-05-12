@@ -348,6 +348,12 @@ class WM_OT_CloseClient(bpy.types.Operator):
 # =====================================================================
 # ===== OPERATORS IN LECTURER SOCKETS, OPERATION OF STUDENTS LIST =====
 # =====================================================================
+
+def remove_student(context):
+    context.scene.students.remove(context.scene.student_index)
+    context.scene.student_index -= 1
+    context.window_manager.reload_previews = True
+
 class STUDENT_OT_actions(bpy.types.Operator):
     bl_idname = "student.list_action"
     bl_label = "List Actions"
@@ -368,9 +374,7 @@ class STUDENT_OT_actions(bpy.types.Operator):
             print("Student not found. Error with list")
         else:
             if self.action == "REMOVE":
-                scene.student_index -= 1
-                scene.students.remove(idx)
-                # TODO: ACTION FOR BAN USER, REQUEST SEND AND CLOSE CLIENT SOCKET
+                remove_student(context)
                 self.report({'INFO'}, f"Item {student.name} removed")
         return {"FINISHED"}
 
@@ -385,6 +389,11 @@ class STUDENT_OT_send(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return bool(context.scene.students)
+
+    def remove_student(self, context):
+        context.scene.students.remove(context.scene.student_index)
+        context.scene.student_index -= 1
+        context.window_manager.reload_previews = True
 
     def open_file(self, context, student, data):
         import subprocess
@@ -406,7 +415,7 @@ class STUDENT_OT_send(bpy.types.Operator):
         return {'FINISHED'}
 
 
-    def send_request_for_file(self, context, student, idx):
+    def send_request_for_file(self, context, student):
         '''Lazy Pirate Pattern'''
 
         req = zmq.Context().instance().socket(zmq.REQ)
@@ -438,9 +447,10 @@ class STUDENT_OT_send(bpy.types.Operator):
                     retries_left-=1
                     if retries_left == 0:
                         self.report({'ERROR'}, 'Student seems to be offline, abandonig')
-                        context.scene.student_index -= 1
-                        context.scene.students.remove(idx)
-                        context.window_manager.reload_previews = True
+                        remove_student(context)
+                        # context.scene.student_index -= 1
+                        # context.scene.students.remove(idx)
+                        # context.window_manager.reload_previews = True
                         break
                     self.report({'INFO'}, 'Reconnecting and resending')
                     req = zmq.Context().instance().socket(zmq.REQ)
@@ -460,7 +470,7 @@ class STUDENT_OT_send(bpy.types.Operator):
             self.report({'INFO'}, "Nothing selected in the list")
             return {'CANCELLED'}
 
-        self.send_request_for_file(context, student, idx)
+        self.send_request_for_file(context, student)
         
         return {'FINISHED'}
 
